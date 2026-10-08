@@ -21,3 +21,4 @@ releases/
 *.code-workspace
 amp-debug*.txt
 Alpha Feedback.txt
+docs/AGENT_HANDOFF.md
