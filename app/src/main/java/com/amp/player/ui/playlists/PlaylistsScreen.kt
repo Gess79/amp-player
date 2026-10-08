@@ -2,6 +2,7 @@ package com.amp.player.ui.playlists
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,6 +80,7 @@ fun PlaylistsScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         if (selectedId == null) {
             TopAppBar(
+                windowInsets = WindowInsets(0),
                 title = { Text(stringResource(R.string.playlists_title)) },
                 actions = {
                     IconButton(onClick = vm::refresh) {
@@ -171,6 +173,7 @@ fun PlaylistsScreen(
             }
         } else {
             TopAppBar(
+                windowInsets = WindowInsets(0),
                 title = {
                     Text(selectedPlaylist?.name ?: stringResource(R.string.playlist_fallback_title))
                 },

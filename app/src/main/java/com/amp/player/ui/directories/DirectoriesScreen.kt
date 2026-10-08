@@ -2,6 +2,7 @@ package com.amp.player.ui.directories
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,6 +56,7 @@ fun DirectoriesScreen(vm: DirectoriesViewModel = hiltViewModel()) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
+            windowInsets = WindowInsets(0),
             title = { Text(stringResource(R.string.directories_title)) },
             actions = {
                 IconButton(onClick = vm::refresh) {

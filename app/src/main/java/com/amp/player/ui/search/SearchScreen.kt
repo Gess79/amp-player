@@ -1,5 +1,6 @@
 package com.amp.player.ui.search
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,7 +46,10 @@ fun SearchScreen(vm: SearchViewModel = hiltViewModel()) {
     var menuForTrack by remember { mutableStateOf<Long?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text(stringResource(R.string.search_title)) })
+        TopAppBar(
+            title = { Text(stringResource(R.string.search_title)) },
+            windowInsets = WindowInsets(0),
+        )
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             FilterChip(
                 selected = advanced,
