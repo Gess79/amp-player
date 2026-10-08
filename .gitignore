@@ -1,0 +1,23 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.ap_
+*.aab
+*.jks
+*.keystore
+keystore.properties
+.tools/
+app/build/
+.gradle-home/
+.kotlin/
+releases/
+*.code-workspace
+amp-debug*.txt
+Alpha Feedback.txt

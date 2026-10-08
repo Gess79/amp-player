@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AMP Player</string>
+
+    <!-- Tabs / navigation -->
+    <string name="tab_playlists">Wiedergabelisten</string>
+    <string name="tab_now_playing">Wiedergabe</string>
+    <string name="tab_directories">Verzeichnisse</string>
+    <string name="tab_search">Suche</string>
+    <string name="settings_title">Einstellungen</string>
+
+    <!-- Permissions -->
+    <string name="permission_rationale">AMP braucht Zugriff auf deine Audiodateien, um offline Musik abzuspielen.</string>
+    <string name="grant_permission">Zugriff erlauben</string>
+    <string name="playlist_folder_prompt">AMP kann deine m3u-/xspf-Playlist-Dateien laden. Wähle den Ordner, in dem sie liegen, meist Music. Unterordner werden mitgelesen, weitere Ordner kannst du später in den Einstellungen hinzufügen.</string>
+    <string name="playlist_folder_choose">Playlist-Ordner wählen</string>
+    <string name="skip_for_now">Später</string>
+    <string name="playlists_folder_hint">Noch kein Playlist-Ordner gewählt. Wähle einen, um deine m3u-/xspf-Playlists zu laden.</string>
+    <string name="settings_playlist_folders">Playlist-Ordner</string>
+    <string name="settings_playlist_folders_subtitle">AMP liest m3u-/xspf-Dateien aus diesen Ordnern, inklusive Unterordnern. Die Musik selbst kann irgendwo auf dem Gerät liegen.</string>
+    <string name="settings_playlist_folders_none">Noch kein Ordner gewählt</string>
+    <string name="settings_playlist_folder_add">Ordner hinzufügen</string>
+    <string name="settings_playlist_folder_no_access">%1$s (kein Zugriff)</string>
+    <string name="cd_remove_folder">Ordner entfernen</string>
+    <string name="playlist_type_file">Playlist-Datei</string>
+
+    <!-- Common actions / a11y -->
+    <string name="action_play">Play</string>
+    <string name="action_pause">Pause</string>
+    <string name="action_create">Erstellen</string>
+    <string name="action_cancel">Abbrechen</string>
+    <string name="action_reset">Zurücksetzen</string>
+    <string name="action_back">Zurück</string>
+    <string name="cd_back">Zurück</string>
+    <string name="cd_refresh">Aktualisieren</string>
+    <string name="cd_settings">Einstellungen</string>
+    <string name="cd_delete">Löschen</string>
+    <string name="cd_remove">Entfernen</string>
+    <string name="cd_shuffle">Shuffle</string>
+    <string name="cd_shuffle_play">Shuffle Play</string>
+    <string name="cd_previous">Zurück</string>
+    <string name="cd_play_pause">Play/Pause</string>
+    <string name="cd_next">Weiter</string>
+    <string name="cd_favorite">Favorit</string>
+    <string name="cd_add_to_playlist">Zu Playlist</string>
+    <string name="cd_cover">Cover</string>
+    <string name="cd_sleep_30_min">Sleep 30 Min.</string>
+    <string name="cd_new_playlist">Neue Playlist</string>
+    <string name="placeholder_em_dash">—</string>
+    <string name="shuffle_on">Shuffle an</string>
+    <string name="shuffle_off">Shuffle aus</string>
+    <string name="source_progress">Titel %1$d von %2$d</string>
+    <string name="source_progress_shuffle">Titel %1$d von %2$d der Shuffle-Reihenfolge</string>
+    <string name="shuffle_play">Shuffle Play</string>
+    <string name="resume_shuffle">Shuffle fortsetzen</string>
+    <string name="resume_round">Runde fortsetzen</string>
+    <string name="favorites">Favoriten</string>
+    <string name="recently_played">Zuletzt gespielt</string>
+    <string name="sleep_timer">Sleep-Timer</string>
+    <string name="sleep_timer_off">Timer aus</string>
+    <string name="import_m3u">M3U importieren</string>
+    <string name="empty_library">Noch keine Tracks gefunden. Lege Musik aufs Gerät und tippe auf Aktualisieren.</string>
+    <string name="label_name">Name</string>
+    <string name="label_title">Titel</string>
+    <string name="label_artist">Artist</string>
+    <string name="label_album">Album</string>
+    <string name="label_directory">Verzeichnis</string>
+
+    <!-- Language -->
+    <string name="settings_language">Sprache</string>
+    <string name="settings_language_subtitle">App-Oberfläche</string>
+    <string name="language_system">Systemsprache</string>
+    <string name="language_german">Deutsch</string>
+    <string name="language_english">English</string>
+
+    <!-- Settings -->
+    <string name="settings_resume_shuffle">Shuffle-Runde fortsetzen</string>
+    <string name="settings_resume_shuffle_subtitle">Nach App-/Auto-Neustart gespeicherte Queue laden</string>
+    <string name="settings_spread_similar">Ähnliche Titel auseinanderhalten</string>
+    <string name="settings_spread_similar_subtitle">Wenn Interpret und Titel ineinander enthalten sind, zufälligen Abstand halten. Gilt ab dem nächsten Shuffle.</string>
+    <string name="settings_spread_artist">Gleichen Interpreten streuen</string>
+    <string name="settings_spread_artist_subtitle">Weniger Cluster hintereinander. Gilt ab dem nächsten Shuffle.</string>
+    <string name="settings_dark_theme">Dunkles Theme</string>
+    <string name="settings_dark_theme_subtitle">Erscheinungsbild der App</string>
+    <string name="settings_replay_gain">Lautheit angleichen (ReplayGain)</string>
+    <string name="settings_replay_gain_subtitle">Tracks einer Playlist auf etwa −14 LUFS bringen. Originale bleiben unverändert; Werte liegen nur im App-Cache. Default aus.</string>
+    <string name="settings_replay_gain_limiter">Gain + Limiter</string>
+    <string name="settings_replay_gain_limiter_subtitle">An: Ziel −14 LUFS, Peaks werden begrenzt (max. +12 dB). Aus: nur Gain, Peaks bleiben unter 0 dB.</string>
+    <string name="settings_import_playlist_file">Playlist-Datei importieren (m3u/xspf)</string>
+    <string name="settings_refresh_library">Bibliothek + Playlists aktualisieren</string>
+    <string name="settings_shuffle_all">Alle Tracks shuffeln</string>
+    <string name="settings_share_logs">Debug-Logs teilen</string>
+    <string name="settings_clear_logs">Debug-Logs löschen</string>
+    <string name="settings_bluetooth_wake_section">Bluetooth-Wake</string>
+    <string name="settings_check_bt_wake">Bluetooth-Wake-Berechtigung prüfen</string>
+    <string name="settings_open_app_permissions">App-Berechtigungen öffnen</string>
+    <string name="settings_refresh_result">%1$d Tracks, %2$d Playlist-Dateien</string>
+    <string name="settings_import_result">%1$d / %2$d Tracks importiert</string>
+    <string name="playlist_import_default_name">Importierte Playlist</string>
+    <string name="playlist_import_unreadable">Datei nicht lesbar</string>
+    <string name="playlist_import_unreadable_named">Nicht lesbar: %1$s</string>
+    <string name="playlist_import_empty">Leere Playlist</string>
+    <string name="playlist_import_no_matches">Keine passenden Tracks für %1$s</string>
+    <string name="notification_channel_playback">Wiedergabe</string>
+    <string name="notification_channel_playback_desc">AMP Player Wiedergabe</string>
+    <string name="notification_playback_starting">Wiedergabe startet…</string>
+    <string name="settings_logs_empty">Noch keine Logs vorhanden</string>
+    <string name="settings_logs_share_subject">AMP Player Logs</string>
+    <string name="settings_logs_share_chooser">Logs teilen</string>
+    <string name="settings_logs_ready">Log-Datei bereit (%1$d Bytes)</string>
+    <string name="settings_logs_share_failed">Logs teilen fehlgeschlagen: %1$s</string>
+    <string name="settings_logs_cleared">Logs gelöscht</string>
+    <string name="toast_bt_permission_granted">Bluetooth-Berechtigung erlaubt</string>
+    <string name="toast_bt_permission_denied">Bluetooth-Berechtigung abgelehnt</string>
+    <string name="bt_wake_no_runtime_permission">Auf Android %1$d: keine Laufzeit-Permission nötig</string>
+    <string name="bt_wake_permission_granted">BLUETOOTH_CONNECT ist erlaubt ✓</string>
+    <string name="bt_wake_permission_missing">BLUETOOTH_CONNECT fehlt — Auto-Wake nach Kill braucht diese Berechtigung</string>
+
+    <!-- Playlists -->
+    <string name="playlists_title">Playlists</string>
+    <string name="playlist_type_favorites">Favoriten</string>
+    <string name="playlist_type_app">App-Playlist</string>
+    <string name="playlist_fallback_title">Playlist</string>
+    <string name="playlist_loading">Playlist wird geladen…</string>
+    <string name="playlist_stats">%1$d Tracks · %2$s</string>
+    <string name="playlist_stats_empty">0 Tracks</string>
+    <string name="playlist_replay_gain_disabled_hint">Lautheit angleichen ist in den Einstellungen aus. Analysieren speichert Werte, angleichen tut nur der Schalter.</string>
+    <string name="playlist_analyzing">Analysiere…</string>
+    <string name="playlist_analyze_loudness">Lautheit analysieren</string>
+    <string name="playlist_reset_replay_gain">ReplayGain zurücksetzen</string>
+    <string name="playlist_updating_tracks">Aktualisiere Trackliste…</string>
+    <string name="dialog_new_playlist">Neue Playlist</string>
+    <string name="dialog_reset_replay_gain_title">ReplayGain zurücksetzen?</string>
+    <string name="dialog_reset_replay_gain_body">Löscht nur den App-Cache für diese Tracks, nicht die Audiodateien. Tags in den Dateien bleiben und werden beim nächsten Scan wieder gelesen.</string>
+    <string name="library_scanning">Scanne…</string>
+    <string name="library_scan_result">%1$d Tracks · %2$d Datei-Playlists</string>
+
+    <!-- Now playing -->
+    <string name="now_playing_idle">Nichts spielt</string>
+    <string name="now_playing_round_info">%1$s · Runde %2$d · %3$s</string>
+    <string name="queue_title">Queue</string>
+
+    <!-- Directories / search -->
+    <string name="directories_title">Verzeichnisse</string>
+    <string name="search_title">Suche</string>
+    <string name="search_advanced">Erweiterte Filter</string>
+    <string name="search_simple">Einfache Suche</string>
+    <string name="search_query_hint">Titel, Artist, Album, Ordner…</string>
+
+    <!-- Widgets -->
+    <string name="widget_now_playing_description">Einzeiliger Player mit Cover und Steuerung</string>
+    <string name="widget_shuffle_description">Player mit Cover, Steuerung und Shuffle-Optionen</string>
+    <string name="widget_tap_to_open">Tippen zum Öffnen</string>
+    <string name="widget_playlist_label">Playlist: %1$s</string>
+    <string name="widget_up_next">Als Nächstes: %1$s</string>
+    <string name="widget_resume">Fortsetzen</string>
+    <string name="widget_start">Start</string>
+    <string name="source_all_tracks">Alle Tracks</string>
+    <string name="source_search">Suche</string>
+
+    <!-- ReplayGain status / notifications -->
+    <string name="rg_no_tracks">ReplayGain: keine Tracks</string>
+    <string name="rg_all_current">ReplayGain: %1$d / %2$d aktuell</string>
+    <string name="rg_stale_and_missing">ReplayGain: %1$d / %2$d aktuell · %3$d geändert, %4$d ohne Wert</string>
+    <string name="rg_stale_needed">ReplayGain: %1$d / %2$d aktuell · %3$d Datei(en) geändert — Analyse nötig</string>
+    <string name="rg_missing_needed">ReplayGain: %1$d / %2$d aktuell · %3$d ohne Wert — Analyse nötig</string>
+    <string name="rg_start">ReplayGain: Starte Analyse…</string>
+    <string name="rg_start_failed">ReplayGain: Analyse konnte nicht starten. App offen lassen und erneut tippen.</string>
+    <string name="rg_analyzing">ReplayGain: Analysiere…</string>
+    <string name="rg_progress">ReplayGain: %1$s (%2$d / %3$d)</string>
+    <string name="rg_done">ReplayGain: Fertig: %1$d neu, %2$d aktuell</string>
+    <string name="rg_done_with_failed">ReplayGain: Fertig: %1$d neu, %2$d aktuell, %3$d fehlgeschlagen</string>
+    <string name="rg_cancelled">ReplayGain: Abgebrochen bei %1$d / %2$d. Bereits gemessene Werte bleiben.</string>
+    <string name="rg_notification_title">AMP Lautheit</string>
+    <string name="rg_notification_analyzing">Lautheit wird analysiert…</string>
+    <string name="rg_notification_channel">Lautheit analysieren</string>
+    <string name="rg_notification_done">Analyse beendet</string>
+</resources>
