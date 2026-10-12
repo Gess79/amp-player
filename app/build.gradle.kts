@@ -9,11 +9,11 @@ plugins {
 }
 
 android {
-    namespace = "com.amp.player"
+    namespace = "io.github.gess79.amp"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.amp.player"
+        applicationId = "io.github.gess79.amp"
         minSdk = 26
         targetSdk = 36
         versionCode = 2
