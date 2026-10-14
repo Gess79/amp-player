@@ -11,10 +11,15 @@ import android.net.Uri
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
+import android.util.Base64
 import android.util.Size
 import io.github.gess79.amp.util.AmpLog
 import java.io.File
 import java.io.FileNotFoundException
+import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * Cover art per track: the picture embedded in the file, otherwise the folder image, but only for
@@ -23,7 +28,9 @@ import java.io.FileNotFoundException
  * so mixed folders (favorites, compilations) all show the same unrelated cover.
  *
  * Exported read-only: System UI media controls and Bluetooth load the session's artwork URI from
- * their own process.
+ * their own process. Every URI carries an HMAC made with a per-install secret, so other apps can
+ * only open URIs this app handed out, not probe arbitrary MediaStore IDs (which would bypass
+ * READ_MEDIA_AUDIO) or fill the cache.
  */
 class ArtworkProvider : ContentProvider() {
 
@@ -31,7 +38,43 @@ class ArtworkProvider : ContentProvider() {
         private const val PARAM_VERSION = "v"
         private const val PARAM_FOLDER_ART = "folder"
         private const val PARAM_ALBUM_ID = "album"
+        private const val PARAM_TOKEN = "t"
         private const val FOLDER_ART_SIZE = 512
+        private const val PREFS = "artwork_provider"
+        private const val PREF_SECRET = "secret"
+
+        @Volatile
+        private var secret: ByteArray? = null
+
+        private fun secret(context: Context): ByteArray {
+            secret?.let { return it }
+            synchronized(this) {
+                secret?.let { return it }
+                val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                val stored = prefs.getString(PREF_SECRET, null)
+                    ?.let { runCatching { Base64.decode(it, Base64.NO_WRAP) }.getOrNull() }
+                val key = stored ?: ByteArray(32).also { bytes ->
+                    SecureRandom().nextBytes(bytes)
+                    prefs.edit().putString(PREF_SECRET, Base64.encodeToString(bytes, Base64.NO_WRAP)).commit()
+                }
+                secret = key
+                return key
+            }
+        }
+
+        private fun token(
+            context: Context,
+            trackId: Long,
+            version: String,
+            allowFolderArt: Boolean,
+            albumId: String?,
+        ): String {
+            val mac = Mac.getInstance("HmacSHA256")
+            mac.init(SecretKeySpec(secret(context), "HmacSHA256"))
+            val payload = "$trackId|$version|${if (allowFolderArt) 1 else 0}|${albumId.orEmpty()}"
+            val digest = mac.doFinal(payload.toByteArray(Charsets.UTF_8))
+            return Base64.encodeToString(digest, 0, 16, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+        }
 
         fun uriFor(
             context: Context,
@@ -50,6 +93,11 @@ class ArtworkProvider : ContentProvider() {
                 builder.appendQueryParameter(PARAM_FOLDER_ART, "1")
                     .appendQueryParameter(PARAM_ALBUM_ID, albumId.toString())
             }
+            val album = if (allowFolderArt) albumId.toString() else null
+            builder.appendQueryParameter(
+                PARAM_TOKEN,
+                token(context, trackId, dateModified.toString(), allowFolderArt, album),
+            )
             return builder.build().toString()
         }
     }
@@ -65,7 +113,13 @@ class ArtworkProvider : ContentProvider() {
             ?: throw FileNotFoundException("bad uri $uri")
         val version = uri.getQueryParameter(PARAM_VERSION) ?: "0"
         val allowFolderArt = uri.getQueryParameter(PARAM_FOLDER_ART) == "1"
-        val albumId = uri.getQueryParameter(PARAM_ALBUM_ID)?.toLongOrNull()
+        val albumParam = uri.getQueryParameter(PARAM_ALBUM_ID)
+        val expected = token(context, trackId, version, allowFolderArt, albumParam)
+        val given = uri.getQueryParameter(PARAM_TOKEN).orEmpty()
+        if (!MessageDigest.isEqual(expected.toByteArray(), given.toByteArray())) {
+            throw SecurityException("invalid artwork token")
+        }
+        val albumId = albumParam?.toLongOrNull()
 
         val dir = File(context.cacheDir, "artwork").apply { mkdirs() }
         val base = "$trackId-$version-${if (allowFolderArt) "f" else "e"}"
