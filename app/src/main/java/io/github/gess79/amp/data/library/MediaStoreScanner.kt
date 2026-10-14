@@ -38,7 +38,7 @@ class MediaStoreScanner @Inject constructor(
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= 1000"
         val sortOrder = "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
 
-        val tracks = mutableListOf<TrackEntity>()
+        val rows = mutableListOf<ScannedRow>()
         context.contentResolver.query(collection, projection, selection, null, sortOrder)?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
@@ -55,29 +55,43 @@ class MediaStoreScanner @Inject constructor(
                 val id = cursor.getLong(idCol)
                 val path = cursor.getString(dataCol).orEmpty()
                 val directory = path.substringBeforeLast('/', missingDelimiterValue = path).ifBlank { "/" }
-                val albumId = cursor.getLong(albumIdCol)
-                val artUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    albumId,
-                ).toString()
-
-                tracks += TrackEntity(
-                    id = id,
-                    title = cursor.getString(titleCol)?.ifBlank { File(path).name } ?: "Unknown",
-                    artist = cursor.getString(artistCol)?.takeUnless { it == "<unknown>" } ?: "Unknown",
-                    album = cursor.getString(albumCol) ?: "Unknown",
-                    durationMs = cursor.getLong(durationCol),
-                    path = path,
-                    directory = directory,
-                    albumArtUri = artUri,
-                    dateAdded = cursor.getLong(dateCol) * 1000,
-                    sizeBytes = cursor.getLong(sizeCol),
-                    dateModified = cursor.getLong(modifiedCol) * 1000,
+                rows += ScannedRow(
+                    track = TrackEntity(
+                        id = id,
+                        title = cursor.getString(titleCol)?.ifBlank { File(path).name } ?: "Unknown",
+                        artist = cursor.getString(artistCol)?.takeUnless { it == "<unknown>" } ?: "Unknown",
+                        album = cursor.getString(albumCol) ?: "Unknown",
+                        durationMs = cursor.getLong(durationCol),
+                        path = path,
+                        directory = directory,
+                        albumArtUri = null,
+                        dateAdded = cursor.getLong(dateCol) * 1000,
+                        sizeBytes = cursor.getLong(sizeCol),
+                        dateModified = cursor.getLong(modifiedCol) * 1000,
+                    ),
+                    albumId = cursor.getLong(albumIdCol),
                 )
             }
         }
-        return tracks
+
+        val singleAlbumDirs = rows
+            .groupBy { it.track.directory }
+            .filterValues { group -> group.map { it.track.album.trim().lowercase() }.distinct().size == 1 }
+            .keys
+        return rows.map { row ->
+            row.track.copy(
+                albumArtUri = ArtworkProvider.uriFor(
+                    context = context,
+                    trackId = row.track.id,
+                    dateModified = row.track.dateModified,
+                    albumId = row.albumId,
+                    allowFolderArt = row.track.directory in singleAlbumDirs,
+                ),
+            )
+        }
     }
+
+    private class ScannedRow(val track: TrackEntity, val albumId: Long)
 
     fun contentUriFor(trackId: Long): Uri =
         ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, trackId)
