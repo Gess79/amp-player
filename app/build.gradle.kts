@@ -8,6 +8,36 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+val signingKeys = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+val releaseSigningProblem: String? = when {
+    !keystorePropertiesFile.exists() ->
+        "keystore.properties not found in the project root (${keystorePropertiesFile.path})."
+    signingKeys.any { keystoreProperties.getProperty(it).isNullOrBlank() } ->
+        "keystore.properties is missing: " +
+            signingKeys.filter { keystoreProperties.getProperty(it).isNullOrBlank() }.joinToString()
+    !file(keystoreProperties.getProperty("storeFile")).exists() ->
+        "Keystore not found: ${file(keystoreProperties.getProperty("storeFile")).path}"
+    else -> null
+}
+
+// Release outputs must never be built unsigned; debug builds don't need the keystore.
+gradle.taskGraph.whenReady {
+    val releaseTasks = setOf("packageRelease", "signReleaseBundle")
+    val wantsRelease = allTasks.any { it.project == project && it.name in releaseTasks }
+    if (wantsRelease && releaseSigningProblem != null) {
+        throw GradleException(
+            "Release signing is not configured: $releaseSigningProblem\n" +
+                "Copy keystore.properties to the project root and the keystore to the path in " +
+                "storeFile, then run the release build again.",
+        )
+    }
+}
+
 android {
     namespace = "io.github.gess79.amp"
     compileSdk = 36
@@ -21,15 +51,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    val keystorePropertiesFile = rootProject.file("keystore.properties")
-    val keystoreProperties = Properties()
-    if (keystorePropertiesFile.exists()) {
-        keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
-    }
-
     signingConfigs {
         create("release") {
-            if (keystorePropertiesFile.exists()) {
+            if (releaseSigningProblem == null) {
                 storeFile = file(keystoreProperties["storeFile"] as String)
                 storePassword = keystoreProperties["storePassword"] as String
                 keyAlias = keystoreProperties["keyAlias"] as String
@@ -50,7 +74,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            if (keystorePropertiesFile.exists()) {
+            if (releaseSigningProblem == null) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
