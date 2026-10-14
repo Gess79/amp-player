@@ -21,6 +21,9 @@ import java.io.FileNotFoundException
  * folders that hold a single album. MediaStore album art is not used directly because Android
  * applies a folder's `AlbumArt_*.jpg` / `Folder.jpg` to every track without an embedded picture,
  * so mixed folders (favorites, compilations) all show the same unrelated cover.
+ *
+ * Exported read-only: System UI media controls and Bluetooth load the session's artwork URI from
+ * their own process.
  */
 class ArtworkProvider : ContentProvider() {
 
@@ -56,6 +59,7 @@ class ArtworkProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+        if (mode != "r") throw SecurityException("read-only")
         val context = context ?: throw FileNotFoundException("no context")
         val trackId = uri.pathSegments.getOrNull(1)?.toLongOrNull()
             ?: throw FileNotFoundException("bad uri $uri")
