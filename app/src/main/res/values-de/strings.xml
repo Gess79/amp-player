@@ -3,7 +3,7 @@
     <string name="app_name">AMP Player</string>
 
     <!-- Tabs / navigation -->
-    <string name="tab_playlists">Wiedergabelisten</string>
+    <string name="tab_playlists">Playlists</string>
     <string name="tab_now_playing">Wiedergabe</string>
     <string name="tab_directories">Verzeichnisse</string>
     <string name="tab_search">Suche</string>

@@ -16,8 +16,8 @@ android {
         applicationId = "io.github.gess79.amp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.2.1-beta"
+        versionCode = 5
+        versionName = "0.2.2-beta"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
