@@ -149,20 +149,21 @@
     <string name="source_all_tracks">All tracks</string>
     <string name="source_search">Search</string>
 
-    <string name="rg_no_tracks">ReplayGain: no tracks</string>
-    <string name="rg_all_current">ReplayGain: %1$d / %2$d up to date</string>
-    <string name="rg_stale_and_missing">ReplayGain: %1$d / %2$d up to date · %3$d changed, %4$d missing</string>
-    <string name="rg_stale_needed">ReplayGain: %1$d / %2$d up to date · %3$d file(s) changed — analysis needed</string>
-    <string name="rg_missing_needed">ReplayGain: %1$d / %2$d up to date · %3$d missing — analysis needed</string>
-    <string name="rg_start">ReplayGain: starting analysis…</string>
-    <string name="rg_start_failed">ReplayGain: could not start analysis. Keep the app open and try again.</string>
-    <string name="rg_analyzing">ReplayGain: analyzing…</string>
-    <string name="rg_progress">ReplayGain: %1$s (%2$d / %3$d)</string>
-    <string name="rg_done">ReplayGain: done: %1$d new, %2$d up to date</string>
-    <string name="rg_done_with_failed">ReplayGain: done: %1$d new, %2$d up to date, %3$d failed</string>
-    <string name="rg_cancelled">ReplayGain: cancelled at %1$d / %2$d. Already measured values are kept.</string>
+    <string name="rg_no_tracks">Loudness: no tracks</string>
+    <string name="rg_all_current">Loudness: all %1$d tracks measured</string>
+    <string name="rg_stale_and_missing">Loudness: %1$d of %2$d tracks measured · %4$d remaining · %3$d changed since measuring</string>
+    <string name="rg_stale_needed">Loudness: %1$d of %2$d tracks measured · %3$d changed since measuring</string>
+    <string name="rg_missing_needed">Loudness: %1$d of %2$d tracks measured · %3$d remaining</string>
+    <string name="rg_start">Loudness: starting analysis…</string>
+    <string name="rg_start_failed">Loudness: could not start analysis. Keep the app open and try again.</string>
+    <string name="rg_analyzing">Loudness: analyzing…</string>
+    <string name="rg_progress">Loudness: %1$s (%2$d / %3$d)</string>
+    <string name="rg_done">Loudness: done · %1$d newly measured, %2$d already up to date</string>
+    <string name="rg_done_with_failed">Loudness: done · %1$d newly measured, %2$d already up to date, %3$d failed</string>
+    <string name="rg_cancelled">Loudness: cancelled at %1$d / %2$d. Already measured values are kept.</string>
     <string name="rg_notification_title">AMP loudness</string>
     <string name="rg_notification_analyzing">Analyzing loudness…</string>
     <string name="rg_notification_channel">Analyze loudness</string>
     <string name="rg_notification_done">Analysis finished</string>
+    <string name="storage_sd_card">SD card</string>
 </resources>

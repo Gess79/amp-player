@@ -60,7 +60,7 @@ fun SourceDetailHeader(
             status.label
         },
         style = MaterialTheme.typography.bodySmall,
-        color = if (status.needsAnalysis) {
+        color = if (status.needsAnalysis && replayGainEnabled) {
             MaterialTheme.colorScheme.tertiary
         } else {
             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)

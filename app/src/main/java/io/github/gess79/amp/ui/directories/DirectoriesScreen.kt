@@ -27,6 +27,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -84,13 +86,29 @@ fun DirectoriesScreen(vm: DirectoriesViewModel = hiltViewModel()) {
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(Icons.Default.Folder, contentDescription = null)
-                            Text(
-                                text = dir,
+                            val label = folderLabel(dir)
+                            Column(
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(horizontal = 12.dp),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
+                            ) {
+                                Text(
+                                    text = label.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (label.parent.isNotEmpty()) {
+                                    Text(
+                                        text = label.parent,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                             IconButton(onClick = { vm.shuffleDirectory(dir) }) {
                                 Icon(
                                     Icons.Default.Shuffle,
@@ -110,10 +128,11 @@ fun DirectoriesScreen(vm: DirectoriesViewModel = hiltViewModel()) {
                     Text(stringResource(R.string.action_back))
                 }
                 Text(
-                    text = selected.orEmpty(),
+                    text = selected?.let { folderLabel(it).name }.orEmpty(),
                     modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             SourceDetailHeader(
@@ -143,4 +162,25 @@ fun DirectoriesScreen(vm: DirectoriesViewModel = hiltViewModel()) {
             }
         }
     }
+}
+
+private data class FolderLabel(val name: String, val parent: String)
+
+/** Folder name plus the path leading to it, without the storage root ("/storage/emulated/0"). */
+@Composable
+private fun folderLabel(path: String): FolderLabel {
+    val sdCard = stringResource(R.string.storage_sd_card)
+    val relative = when {
+        path.startsWith("/storage/emulated/0") -> path.removePrefix("/storage/emulated/0")
+        path.startsWith("/storage/") -> {
+            val rest = path.removePrefix("/storage/").substringAfter('/', missingDelimiterValue = "")
+            "/$sdCard/$rest".trimEnd('/')
+        }
+        else -> path
+    }.trim('/')
+    if (relative.isEmpty()) return FolderLabel(name = "/", parent = "")
+    return FolderLabel(
+        name = relative.substringAfterLast('/'),
+        parent = relative.substringBeforeLast('/', missingDelimiterValue = ""),
+    )
 }

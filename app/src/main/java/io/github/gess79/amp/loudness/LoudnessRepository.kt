@@ -90,7 +90,7 @@ class LoudnessRepository @Inject constructor(
         val needsAnalysis = stale + missing > 0
         val label = when {
             total == 0 -> context.getString(R.string.rg_no_tracks)
-            !needsAnalysis -> context.getString(R.string.rg_all_current, current, total)
+            !needsAnalysis -> context.getString(R.string.rg_all_current, total)
             stale > 0 && missing > 0 -> context.getString(
                 R.string.rg_stale_and_missing,
                 current,
