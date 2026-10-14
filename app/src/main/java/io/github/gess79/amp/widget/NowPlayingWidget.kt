@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,9 +50,9 @@ class NowPlayingWidget : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val str = AppLocale.wrap(context)
         provideContent {
             val prefs = currentState<Preferences>()
+            val str = remember(prefs[WidgetPrefs.localeVersion]) { AppLocale.wrap(context) }
             val title = prefs[WidgetPrefs.title] ?: str.getString(R.string.app_name)
             val artist = prefs[WidgetPrefs.artist]
                 ?: str.getString(R.string.widget_tap_to_open)

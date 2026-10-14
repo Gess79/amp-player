@@ -90,7 +90,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.Main.immediate) {
             settings.setAppLanguage(value)
             library.ensureFavoritesPlaylist()
-            widgetUpdater.updateAll()
+            widgetUpdater.refreshLocale()
             runCatching {
                 context.startService(
                     Intent(context, PlaybackService::class.java)

@@ -3,6 +3,7 @@ package io.github.gess79.amp.widget
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,9 +43,9 @@ class ShufflePlayWidget : GlanceAppWidget() {
     override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val str = AppLocale.wrap(context)
         provideContent {
             val prefs = currentState<Preferences>()
+            val str = remember(prefs[WidgetPrefs.localeVersion]) { AppLocale.wrap(context) }
             ExpandedPlayer(
                 title = prefs[WidgetPrefs.title] ?: str.getString(R.string.app_name),
                 artist = prefs[WidgetPrefs.artist]
@@ -53,7 +54,7 @@ class ShufflePlayWidget : GlanceAppWidget() {
                 positionLabel = prefs[WidgetPrefs.positionLabel] ?: "0:00",
                 durationLabel = prefs[WidgetPrefs.durationLabel] ?: "0:00",
                 progress = prefs[WidgetPrefs.progress] ?: 0f,
-                playlistName = prefs[WidgetPrefs.playlistName],
+                playlistName = widgetSourceLabel(prefs, str),
                 nextTitle = prefs[WidgetPrefs.nextTitle],
                 shuffleEnabled = prefs[WidgetPrefs.shuffleEnabled] ?: true,
                 hasQueue = prefs[WidgetPrefs.hasQueue] ?: false,

@@ -14,6 +14,8 @@ class WidgetUpdater @Inject constructor(
 ) {
     fun updateAll() = bridge.updateAll()
 
+    fun refreshLocale() = bridge.refreshLocale()
+
     fun setPlaying(playing: Boolean) = bridge.setPlaying(playing)
 
     fun publish(
