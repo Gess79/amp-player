@@ -1,14 +1,18 @@
 package io.github.gess79.amp.ui.nowplaying
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -16,6 +20,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -33,10 +38,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,7 +56,10 @@ import io.github.gess79.amp.R
 import io.github.gess79.amp.ui.components.formatMs
 
 @Composable
-fun NowPlayingScreen(vm: NowPlayingViewModel = hiltViewModel()) {
+fun NowPlayingScreen(
+    onOpenSettings: () -> Unit = {},
+    vm: NowPlayingViewModel = hiltViewModel(),
+) {
     val playback by vm.playback.collectAsStateWithLifecycle()
     val queueInfo by vm.queueInfo.collectAsStateWithLifecycle()
     val favorite by vm.isFavorite.collectAsStateWithLifecycle()
@@ -60,17 +74,36 @@ fun NowPlayingScreen(vm: NowPlayingViewModel = hiltViewModel()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 16.dp),
     ) {
-        AsyncImage(
-            model = playback.artworkUri,
-            contentDescription = null,
+        Box(modifier = Modifier.fillMaxWidth()) {
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            ) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = stringResource(R.string.cd_settings),
+                )
+            }
+        }
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f),
-            contentScale = ContentScale.Crop,
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+                .weight(1f),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = playback.artworkUri,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .aspectRatio(1f, matchHeightConstraintsFirst = true),
+                contentScale = ContentScale.Crop,
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = playback.title.ifBlank { stringResource(R.string.now_playing_idle) },
             style = MaterialTheme.typography.headlineSmall,
@@ -122,55 +155,60 @@ fun NowPlayingScreen(vm: NowPlayingViewModel = hiltViewModel()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
+                .padding(top = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = { vm.skipToPrevious() }) {
-                Icon(
-                    Icons.Default.SkipPrevious,
-                    contentDescription = stringResource(R.string.cd_previous),
-                )
-            }
-            IconButton(onClick = { vm.playPause() }) {
-                Icon(
-                    if (playback.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = stringResource(R.string.cd_play_pause),
-                )
-            }
-            IconButton(onClick = { vm.skipToNext() }) {
-                Icon(
-                    Icons.Default.SkipNext,
-                    contentDescription = stringResource(R.string.cd_next),
-                )
-            }
-            IconButton(onClick = vm::toggleShuffle) {
-                Icon(
-                    Icons.Default.Shuffle,
-                    contentDescription = if (shuffleOn) {
-                        stringResource(R.string.shuffle_on)
-                    } else {
-                        stringResource(R.string.shuffle_off)
-                    },
-                    tint = if (shuffleOn) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                    },
-                )
-            }
-            IconButton(onClick = vm::toggleFavorite) {
-                Icon(
-                    if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = stringResource(R.string.cd_favorite),
-                )
-            }
-            IconButton(onClick = { vm.setSleepTimer(30) }) {
-                Icon(
-                    Icons.Default.Timer,
-                    contentDescription = stringResource(R.string.cd_sleep_30_min),
-                )
-            }
+            TransportButton(
+                onClick = { vm.skipToPrevious() },
+                icon = Icons.Default.SkipPrevious,
+                contentDescription = stringResource(R.string.cd_previous),
+            )
+            TransportButton(
+                onClick = { vm.playPause() },
+                icon = if (playback.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = stringResource(R.string.cd_play_pause),
+                containerSize = 76.dp,
+                iconSize = 44.dp,
+            )
+            TransportButton(
+                onClick = { vm.skipToNext() },
+                icon = Icons.Default.SkipNext,
+                contentDescription = stringResource(R.string.cd_next),
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp, bottom = 4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TransportButton(
+                onClick = vm::toggleShuffle,
+                icon = Icons.Default.Shuffle,
+                contentDescription = if (shuffleOn) {
+                    stringResource(R.string.shuffle_on)
+                } else {
+                    stringResource(R.string.shuffle_off)
+                },
+                tint = if (shuffleOn) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                },
+            )
+            TransportButton(
+                onClick = vm::toggleFavorite,
+                icon = if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                contentDescription = stringResource(R.string.cd_favorite),
+                tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            )
+            TransportButton(
+                onClick = { vm.setSleepTimer(30) },
+                icon = Icons.Default.Timer,
+                contentDescription = stringResource(R.string.cd_sleep_30_min),
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = vm::resumeShuffle) {
@@ -201,5 +239,30 @@ fun NowPlayingScreen(vm: NowPlayingViewModel = hiltViewModel()) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TransportButton(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String,
+    containerSize: Dp = 64.dp,
+    iconSize: Dp = 36.dp,
+    tint: Color? = null,
+) {
+    Box(
+        modifier = Modifier
+            .requiredSize(containerSize)
+            .semantics { role = Role.Button }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.requiredSize(iconSize),
+            tint = tint ?: MaterialTheme.colorScheme.onSurface,
+        )
     }
 }

@@ -94,7 +94,8 @@ class PlaybackService : MediaLibraryService() {
         private const val BOOTSTRAP_CHANNEL_ID = "amp_playback"
         /** Car head units often finish A2DP/AVRCP after the first device-added event. */
         private const val BT_SETTLE_MS = 1_800L
-        private const val BT_REATTACH_WINDOW_MS = 10_000L
+        private const val BT_PLAY_RETRY_MS = 3_000L
+        private const val BT_PLAY_RETRY_COUNT = 24
         /** Head units often send STOP ~100ms after we load the next shuffle item. */
         private const val IGNORE_REMOTE_STOP_MS = 2_500L
     }
@@ -132,6 +133,18 @@ class PlaybackService : MediaLibraryService() {
     private var lastPlayCurrentElapsed = 0L
     private var lastPlayCurrentWantedPlay = false
     private var recoveringFromIdle = false
+    /**
+     * Last position we intentionally restored/seeked to. Protects the DB from being
+     * overwritten with 0 when the service dies mid-restore or before Exo applies the seek
+     * (seen with Coma: ~136s wiped to 0 on a brief onCreate/onDestroy cycle).
+     */
+    private var anchoredPositionMs: Long = 0L
+    private var btPlayRetryJob: Job? = null
+    /**
+     * One route-kick per A2DP connection, and only after playback is actually running.
+     * isPlaying alone is not enough: the playhead moves while the car sink is still silent.
+     */
+    private var a2dpKickDone = false
 
     private val customCommands = listOf(
         SessionCommand(PlayerCommands.START_SHUFFLE, Bundle.EMPTY),
@@ -266,6 +279,10 @@ class PlaybackService : MediaLibraryService() {
                     playWhenReady -> {
                         userPausedPlayback = false
                         setResumeOnBluetooth(true)
+                        // Kick only once playback is really requested. Doing it earlier,
+                        // while focus is still denied, never reaches the car.
+                        armA2dpKick("play-when-ready")
+                        btPlayRetryJob?.cancel()
                     }
                     reattachingAudio -> { /* pause/play bounce to bind A2DP; not a user pause */ }
                     reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST -> {
@@ -273,11 +290,19 @@ class PlaybackService : MediaLibraryService() {
                             expectLocalUserPause = false
                             userPausedPlayback = true
                             setResumeOnBluetooth(false)
+                            btPlayRetryJob?.cancel()
                         }
                     }
                     reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY -> {
                         userPausedPlayback = false
                         setResumeOnBluetooth(true)
+                    }
+                    reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS -> {
+                        // Head unit often holds focus for a while after A2DP connects.
+                        // play() stays false; keep retrying instead of rebinding a dead route.
+                        if (resumeOnBluetooth && !userPausedPlayback) {
+                            scheduleA2dpPlayRetries()
+                        }
                     }
                 }
             }
@@ -291,16 +316,30 @@ class PlaybackService : MediaLibraryService() {
                 if (isPlaying) {
                     userPausedPlayback = false
                     setResumeOnBluetooth(true)
+                    btPlayRetryJob?.cancel()
+                    armA2dpKick("is-playing")
                 }
                 serviceScope.launch {
                     val q = queue
                     val exo = exoPlayer
                     if (q != null && exo != null) {
-                        val pos = exo.currentPosition.coerceAtLeast(0L)
+                        val pos = positionToPersist(exo)
                         shuffleStore.save(q, pos, shuffleEnabled, isPlaying)
                         publishWidgets(q, positionMs = pos, isPlaying = isPlaying, force = true)
                     }
                     widgetUpdater.setPlaying(isPlaying)
+                }
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int,
+            ) {
+                if (reason == Player.DISCONTINUITY_REASON_SEEK ||
+                    reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT
+                ) {
+                    anchoredPositionMs = newPosition.positionMs.coerceAtLeast(0L)
                 }
             }
 
@@ -489,6 +528,7 @@ class PlaybackService : MediaLibraryService() {
         sleepJob?.cancel()
         persistJob?.cancel()
         btResumeJob?.cancel()
+        btPlayRetryJob?.cancel()
         widgetUpdater.setPlaying(false)
         serviceScope.cancel()
         mediaLibrarySession?.release()
@@ -561,6 +601,7 @@ class PlaybackService : MediaLibraryService() {
                     return
                 }
                 lastA2dpAddedElapsed = SystemClock.elapsedRealtime()
+                a2dpKickDone = false
                 AmpLog.i(
                     "Playback",
                     "BT A2DP added types=${a2dp.joinToString { it.type.toString() }} " +
@@ -573,6 +614,10 @@ class PlaybackService : MediaLibraryService() {
             override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
                 val bt = removedDevices.filter { it.isBluetoothAudioOutput() }
                 if (bt.isEmpty()) return
+                if (removedDevices.any { it.isA2dpOutput() }) {
+                    a2dpKickDone = false
+                    btPlayRetryJob?.cancel()
+                }
                 AmpLog.i(
                     "Playback",
                     "BT audio removed types=${bt.joinToString { it.type.toString() }} " +
@@ -610,10 +655,14 @@ class PlaybackService : MediaLibraryService() {
         serviceScope.launch { userSettings.setResumeOnBluetooth(value) }
     }
 
-    private fun scheduleBluetoothAudioSettle(reason: String) {
-        btResumeJob?.cancel()
+    private fun scheduleBluetoothAudioSettle(
+        reason: String,
+        delayMs: Long = BT_SETTLE_MS,
+        replaceRunning: Boolean = true,
+    ) {
+        if (replaceRunning) btResumeJob?.cancel()
         btResumeJob = serviceScope.launch {
-            delay(BT_SETTLE_MS)
+            delay(delayMs)
             if (!isActive) return@launch
             if (!userPausedPlayback && !resumeOnBluetooth) {
                 resumeOnBluetooth = userSettings.resumeOnBluetooth.first()
@@ -635,7 +684,13 @@ class PlaybackService : MediaLibraryService() {
         )
         if (!a2dp) return
         when {
-            exo.playWhenReady || exo.isPlaying -> reattachBluetoothAudioLocked(exo, reason)
+            exo.playWhenReady || exo.isPlaying -> {
+                if (a2dpKickDone) {
+                    AmpLog.i("Playback", "BT settle skip, route already kicked ($reason)")
+                } else if (reattachBluetoothAudioLocked(exo, reason)) {
+                    a2dpKickDone = true
+                }
+            }
             resumeOnBluetooth && !userPausedPlayback -> {
                 AmpLog.i("Playback", "BT resume → play")
                 ensureForegroundBootstrap("bt-resume")
@@ -644,8 +699,43 @@ class PlaybackService : MediaLibraryService() {
                 } else {
                     exo.play()
                 }
+                if (!exo.playWhenReady && !exo.isPlaying) {
+                    AmpLog.w("Playback", "BT resume playWhenReady still false")
+                    scheduleA2dpPlayRetries()
+                }
             }
             else -> AmpLog.i("Playback", "BT settle skipped (paused by user)")
+        }
+    }
+
+    /**
+     * Focus stays denied for a long time on some head units (this morning: still
+     * false 5s after connect, widget play only succeeded ~65s later). Keep asking.
+     */
+    private fun scheduleA2dpPlayRetries() {
+        if (btPlayRetryJob?.isActive == true) return
+        btPlayRetryJob = serviceScope.launch {
+            repeat(BT_PLAY_RETRY_COUNT) { attempt ->
+                delay(BT_PLAY_RETRY_MS)
+                if (!isActive || userPausedPlayback || !resumeOnBluetooth) return@launch
+                if (!hasA2dpOutput()) return@launch
+                val exo = exoPlayer ?: return@launch
+                if (exo.isPlaying || exo.playWhenReady) {
+                    armA2dpKick("retry-already-playing")
+                    return@launch
+                }
+                AmpLog.i("Playback", "BT play retry ${attempt + 1}/$BT_PLAY_RETRY_COUNT")
+                playbackMutex.withLock {
+                    val player = exoPlayer ?: return@withLock
+                    if (player.isPlaying || player.playWhenReady || userPausedPlayback) return@withLock
+                    if (player.mediaItemCount == 0) {
+                        restoreShuffleIfPossibleLocked(play = true)
+                    } else {
+                        player.play()
+                    }
+                }
+            }
+            AmpLog.w("Playback", "BT play retries exhausted")
         }
     }
 
@@ -654,11 +744,11 @@ class PlaybackService : MediaLibraryService() {
      * Playing into a half-ready car sink shows progress with no sound until the
      * head unit is kicked (source switch) or we bounce the route here.
      */
-    private fun reattachBluetoothAudioLocked(exo: ExoPlayer, reason: String) {
+    private fun reattachBluetoothAudioLocked(exo: ExoPlayer, reason: String): Boolean {
         val now = SystemClock.elapsedRealtime()
         if (now - lastBtReattachElapsed < 1_200L) {
             AmpLog.i("Playback", "BT reattach skipped (debounced) reason=$reason")
-            return
+            return false
         }
         lastBtReattachElapsed = now
         val pos = exo.currentPosition.coerceAtLeast(0L)
@@ -674,6 +764,7 @@ class PlaybackService : MediaLibraryService() {
         } finally {
             reattachingAudio = false
         }
+        return true
     }
 
     private fun hasA2dpOutput(): Boolean {
@@ -726,9 +817,25 @@ class PlaybackService : MediaLibraryService() {
                 AmpLog.i("Playback", "play from IDLE → prepare")
                 exo.prepare()
                 exo.play()
+                armA2dpKick("play-from-idle")
             }
-            else -> exo.play()
+            else -> {
+                exo.play()
+                armA2dpKick("widget-play")
+            }
         }
+    }
+
+    /**
+     * Rebind the car route once this A2DP link is actually playing.
+     * A connection that has already been up for a few seconds does not need the
+     * long head-unit settle; the playhead-without-sound case is exactly that.
+     */
+    private fun armA2dpKick(reason: String) {
+        if (a2dpKickDone || !hasA2dpOutput()) return
+        val connectedFor = SystemClock.elapsedRealtime() - lastA2dpAddedElapsed
+        val delayMs = if (connectedFor > 5_000L) 400L else BT_SETTLE_MS
+        scheduleBluetoothAudioSettle("kick-$reason", delayMs = delayMs)
     }
 
     private inner class LibraryCallback : MediaLibrarySession.Callback {
@@ -1108,7 +1215,7 @@ class PlaybackService : MediaLibraryService() {
                 "now ${updated.progressLabel} shuffle=$shuffleEnabled",
         )
         val exo = exoPlayer
-        val pos = exo?.currentPosition?.coerceAtLeast(0L) ?: 0L
+        val pos = exo?.let { positionToPersist(it) } ?: anchoredPositionMs
         val playing = exo?.isPlaying == true
         shuffleStore.save(updated, pos, shuffleEnabled, playing)
         publishWidgets(updated, positionMs = pos, isPlaying = playing, force = true)
@@ -1118,6 +1225,8 @@ class PlaybackService : MediaLibraryService() {
         val persisted = shuffleStore.load() ?: return
         queue = persisted.queue
         shuffleEnabled = persisted.shuffleEnabled
+        // Anchor before any await so a mid-restore onDestroy cannot persist position 0.
+        anchoredPositionMs = persisted.positionMs.coerceAtLeast(0L)
         val exo = exoPlayer
         // Don't let idle restore (play=false) overwrite a concurrent widget/app play request.
         val shouldPlay = play || (exo?.playWhenReady == true)
@@ -1145,7 +1254,7 @@ class PlaybackService : MediaLibraryService() {
             shuffle = enabled,
             generation = current.generation,
         )
-        val pos = exoPlayer?.currentPosition?.coerceAtLeast(0L) ?: 0L
+        val pos = exoPlayer?.let { positionToPersist(it) } ?: anchoredPositionMs
         val playing = exoPlayer?.isPlaying == true
         queue = newQueue
         shuffleStore.save(newQueue, pos, shuffleEnabled, playing)
@@ -1240,6 +1349,7 @@ class PlaybackService : MediaLibraryService() {
         val current = queue ?: return@withLock
         val exo = exoPlayer ?: return@withLock
         if (exo.currentPosition > 3_000) {
+            anchoredPositionMs = 0L
             exo.seekTo(0)
             persistSoon()
             return@withLock
@@ -1263,6 +1373,7 @@ class PlaybackService : MediaLibraryService() {
         if (play) ensureForegroundBootstrap("playCurrent")
         lastPlayCurrentElapsed = SystemClock.elapsedRealtime()
         lastPlayCurrentWantedPlay = play
+        anchoredPositionMs = seekMs.coerceAtLeast(0L)
         applyReplayGainLocked(track)
         exo.setMediaItem(item, seekMs)
         exo.prepare()
@@ -1271,9 +1382,20 @@ class PlaybackService : MediaLibraryService() {
         shuffleStore.save(q, seekMs, shuffleEnabled, play)
         publishWidgets(q, track, seekMs, play || exo.isPlaying, force = true)
         widgetUpdater.setPlaying(play || exo.isPlaying)
-        if (play && SystemClock.elapsedRealtime() - lastA2dpAddedElapsed < BT_REATTACH_WINDOW_MS) {
-            scheduleBluetoothAudioSettle("play-after-a2dp")
+        if (play) armA2dpKick("play-after-a2dp")
+    }
+
+    /**
+     * Prefer Exo's live position once it has moved; otherwise keep [anchoredPositionMs]
+     * so a paused restore at e.g. 2:16 is not written back as 0.
+     */
+    private fun positionToPersist(exo: ExoPlayer): Long {
+        val live = exo.currentPosition.coerceAtLeast(0L)
+        if (live >= 1_500L || exo.isPlaying) {
+            anchoredPositionMs = live
+            return live
         }
+        return anchoredPositionMs.coerceAtLeast(live)
     }
 
     private suspend fun applyReplayGainLocked(track: io.github.gess79.amp.data.db.TrackEntity) {
@@ -1424,7 +1546,7 @@ class PlaybackService : MediaLibraryService() {
                 val q = queue ?: continue
                 val exo = exoPlayer ?: continue
                 if (!exo.isPlaying) continue
-                val pos = exo.currentPosition.coerceAtLeast(0L)
+                val pos = positionToPersist(exo)
                 shuffleStore.save(q, pos, shuffleEnabled, true)
                 publishWidgets(q, positionMs = pos, isPlaying = true, force = false)
             }
@@ -1435,7 +1557,7 @@ class PlaybackService : MediaLibraryService() {
         val q = queue ?: return
         val exo = exoPlayer ?: return
         serviceScope.launch {
-            val pos = exo.currentPosition.coerceAtLeast(0L)
+            val pos = positionToPersist(exo)
             shuffleStore.save(q, pos, shuffleEnabled, exo.isPlaying)
             publishWidgets(q, positionMs = pos, isPlaying = exo.isPlaying, force = forceWidget)
         }
@@ -1447,7 +1569,7 @@ class PlaybackService : MediaLibraryService() {
         runBlocking {
             shuffleStore.save(
                 q,
-                exo.currentPosition.coerceAtLeast(0L),
+                positionToPersist(exo),
                 shuffleEnabled,
                 exo.isPlaying,
             )

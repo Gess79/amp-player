@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -39,7 +40,10 @@ import io.github.gess79.amp.ui.components.TrackRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DirectoriesScreen(vm: DirectoriesViewModel = hiltViewModel()) {
+fun DirectoriesScreen(
+    onOpenSettings: () -> Unit = {},
+    vm: DirectoriesViewModel = hiltViewModel(),
+) {
     val directories by vm.directories.collectAsStateWithLifecycle()
     val selected by vm.selectedDirectory.collectAsStateWithLifecycle()
     val tracks by vm.tracks.collectAsStateWithLifecycle()
@@ -65,6 +69,12 @@ fun DirectoriesScreen(vm: DirectoriesViewModel = hiltViewModel()) {
                     Icon(
                         Icons.Default.Refresh,
                         contentDescription = stringResource(R.string.cd_refresh),
+                    )
+                }
+                IconButton(onClick = onOpenSettings) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = stringResource(R.string.cd_settings),
                     )
                 }
             },

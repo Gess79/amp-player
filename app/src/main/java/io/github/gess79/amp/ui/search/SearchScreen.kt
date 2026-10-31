@@ -9,8 +9,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,7 +36,10 @@ import io.github.gess79.amp.ui.components.TrackRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchScreen(vm: SearchViewModel = hiltViewModel()) {
+fun SearchScreen(
+    onOpenSettings: () -> Unit = {},
+    vm: SearchViewModel = hiltViewModel(),
+) {
     val title by vm.title.collectAsStateWithLifecycle()
     val artist by vm.artist.collectAsStateWithLifecycle()
     val album by vm.album.collectAsStateWithLifecycle()
@@ -49,6 +53,14 @@ fun SearchScreen(vm: SearchViewModel = hiltViewModel()) {
         TopAppBar(
             title = { Text(stringResource(R.string.search_title)) },
             windowInsets = WindowInsets(0),
+            actions = {
+                IconButton(onClick = onOpenSettings) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = stringResource(R.string.cd_settings),
+                    )
+                }
+            },
         )
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             FilterChip(

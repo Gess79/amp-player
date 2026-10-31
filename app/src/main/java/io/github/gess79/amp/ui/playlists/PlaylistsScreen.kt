@@ -33,6 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import io.github.gess79.amp.ui.components.rememberPlaylistFolderPicker
 @Composable
 fun PlaylistsScreen(
     onOpenSettings: () -> Unit,
+    reselectTick: Int = 0,
     vm: PlaylistsViewModel = hiltViewModel(),
 ) {
     val playlists by vm.playlists.collectAsStateWithLifecycle()
@@ -75,6 +77,9 @@ fun PlaylistsScreen(
     val currentTrackId = playback.mediaId?.toLongOrNull()
     var showCreate by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
+    LaunchedEffect(reselectTick) {
+        if (reselectTick > 0) vm.selectPlaylist(null)
+    }
     BackHandler(enabled = selectedId != null) { vm.selectPlaylist(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {

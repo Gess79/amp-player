@@ -14,6 +14,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -49,6 +52,7 @@ fun AmpRoot() {
     val current = backStack?.destination?.route
     val vm: RootViewModel = hiltViewModel()
     val playback by vm.playback.collectAsStateWithLifecycle()
+    var playlistsReselectTick by remember { mutableIntStateOf(0) }
 
     val tabs = listOf(
         Tab(Dest.Playlists, Icons.AutoMirrored.Filled.QueueMusic, R.string.tab_playlists),
@@ -57,21 +61,43 @@ fun AmpRoot() {
         Tab(Dest.Search, Icons.Default.Search, R.string.tab_search),
     )
 
+    fun openSettings() {
+        navController.navigate(Dest.Settings.route) {
+            launchSingleTop = true
+        }
+    }
+
+    fun goToTab(tab: Dest) {
+        if (tab == Dest.Playlists) {
+            // Always surface the playlists root (from Now Playing, Settings, other tabs,
+            // or a playlist detail). popBackStack to the start route pops everything above it.
+            if (!navController.popBackStack(Dest.Playlists.route, inclusive = false)) {
+                navController.navigate(Dest.Playlists.route) {
+                    popUpTo(navController.graph.findStartDestination().id) {
+                        saveState = true
+                    }
+                    launchSingleTop = true
+                }
+            }
+            playlistsReselectTick++
+            return
+        }
+        navController.navigate(tab.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     Scaffold(
         bottomBar = {
             NavigationBar {
                 tabs.forEach { tab ->
                     NavigationBarItem(
                         selected = current == tab.dest.route,
-                        onClick = {
-                            navController.navigate(tab.dest.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
+                        onClick = { goToTab(tab.dest) },
                         icon = { Icon(tab.icon, contentDescription = null) },
                         label = { Text(stringResource(tab.labelRes)) },
                     )
@@ -86,11 +112,20 @@ fun AmpRoot() {
                 modifier = Modifier.weight(1f),
             ) {
                 composable(Dest.Playlists.route) {
-                    PlaylistsScreen(onOpenSettings = { navController.navigate(Dest.Settings.route) })
+                    PlaylistsScreen(
+                        onOpenSettings = ::openSettings,
+                        reselectTick = playlistsReselectTick,
+                    )
                 }
-                composable(Dest.NowPlaying.route) { NowPlayingScreen() }
-                composable(Dest.Directories.route) { DirectoriesScreen() }
-                composable(Dest.Search.route) { SearchScreen() }
+                composable(Dest.NowPlaying.route) {
+                    NowPlayingScreen(onOpenSettings = ::openSettings)
+                }
+                composable(Dest.Directories.route) {
+                    DirectoriesScreen(onOpenSettings = ::openSettings)
+                }
+                composable(Dest.Search.route) {
+                    SearchScreen(onOpenSettings = ::openSettings)
+                }
                 composable(Dest.Settings.route) {
                     SettingsScreen(onBack = { navController.popBackStack() })
                 }
@@ -98,7 +133,9 @@ fun AmpRoot() {
             MiniPlayerBar(
                 state = playback,
                 onOpen = {
-                    navController.navigate(Dest.NowPlaying.route) { launchSingleTop = true }
+                    navController.navigate(Dest.NowPlaying.route) {
+                        launchSingleTop = true
+                    }
                 },
                 onPrevious = { vm.skipToPrevious() },
                 onPlayPause = { vm.playPause() },
