@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.gess79.amp.data.db.TrackEntity
 import io.github.gess79.amp.data.library.LibraryRepository
+import io.github.gess79.amp.loudness.LoudnessRepository
 import io.github.gess79.amp.playback.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,6 +28,7 @@ data class QueueInfo(
 class NowPlayingViewModel @Inject constructor(
     private val player: PlayerController,
     private val library: LibraryRepository,
+    private val loudnessRepository: LoudnessRepository,
 ) : ViewModel() {
     val playback = player.uiState
 
@@ -46,6 +48,32 @@ class NowPlayingViewModel @Inject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Peak envelope for the current track, only when the loudness scan already stored one. */
+    val waveform: StateFlow<ByteArray?> = playback
+        .flatMapLatest { ui ->
+            val id = ui.mediaId?.toLongOrNull()
+            if (id == null) {
+                flow { emit(null) }
+            } else {
+                loudnessRepository.observe(id).flatMapLatest { entry ->
+                    flow {
+                        val track = library.getTrack(id)
+                        val peaks = if (
+                            track != null &&
+                            entry != null &&
+                            loudnessRepository.isWaveformCurrent(entry, track)
+                        ) {
+                            entry.waveform
+                        } else {
+                            null
+                        }
+                        emit(peaks)
+                    }
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val isFavorite: StateFlow<Boolean> = playback
         .flatMapLatest { ui ->

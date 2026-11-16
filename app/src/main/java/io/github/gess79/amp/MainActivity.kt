@@ -7,7 +7,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +36,7 @@ import io.github.gess79.amp.playback.PlaybackService
 import io.github.gess79.amp.ui.components.rememberPlaylistFolderPicker
 import io.github.gess79.amp.ui.navigation.AmpRoot
 import io.github.gess79.amp.ui.theme.AmpTheme
+import io.github.gess79.amp.ui.theme.applyAmpSystemBars
 import io.github.gess79.amp.util.AmpLog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -78,7 +78,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Default theme is dark. AmpTheme replaces this once the saved choice is known.
+        applyAmpSystemBars(darkTheme = true)
         hasAudioPermission = hasAudioPermission()
         if (hasAudioPermission) {
             maybeRequestNotificationPermission()

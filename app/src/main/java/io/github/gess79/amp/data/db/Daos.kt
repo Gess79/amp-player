@@ -1,12 +1,12 @@
 package io.github.gess79.amp.data.db
 
 import androidx.room.Dao
+import kotlinx.coroutines.flow.Flow
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TrackDao {
@@ -234,6 +234,9 @@ interface LoudnessDao {
 
     @Query("SELECT * FROM loudness WHERE trackId = :trackId")
     suspend fun get(trackId: Long): LoudnessEntity?
+
+    @Query("SELECT * FROM loudness WHERE trackId = :trackId")
+    fun observe(trackId: Long): Flow<LoudnessEntity?>
 
     @Query("SELECT * FROM loudness WHERE trackId IN (:ids)")
     suspend fun getByIds(ids: List<Long>): List<LoudnessEntity>

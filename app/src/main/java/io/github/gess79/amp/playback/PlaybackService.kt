@@ -96,6 +96,7 @@ class PlaybackService : MediaLibraryService() {
         private const val BT_SETTLE_MS = 1_800L
         private const val BT_PLAY_RETRY_MS = 3_000L
         private const val BT_PLAY_RETRY_COUNT = 24
+        private const val BT_SPEAKER_GUARD_MS = 700L
         /** Head units often send STOP ~100ms after we load the next shuffle item. */
         private const val IGNORE_REMOTE_STOP_MS = 2_500L
     }
@@ -140,6 +141,9 @@ class PlaybackService : MediaLibraryService() {
      */
     private var anchoredPositionMs: Long = 0L
     private var btPlayRetryJob: Job? = null
+    /** Set only for a Bluetooth-triggered start. Manual play leaves this false. */
+    private var autoplayArmed = false
+    private var speakerGuardJob: Job? = null
     /**
      * One route-kick per A2DP connection, and only after playback is actually running.
      * isPlaying alone is not enough: the playhead moves while the car sink is still silent.
@@ -251,6 +255,12 @@ class PlaybackService : MediaLibraryService() {
                 AmpLog.i("Playback", "stop() → pause")
                 pause()
             }
+
+            override fun play() {
+                // Session, notification, and headset play are manual. Autoplay calls exo.play().
+                disarmAutoplayGuard()
+                super.play()
+            }
         }
         player = forwarding
 
@@ -300,6 +310,7 @@ class PlaybackService : MediaLibraryService() {
                     reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS -> {
                         // Head unit often holds focus for a while after A2DP connects.
                         // play() stays false; keep retrying instead of rebinding a dead route.
+                        AmpLog.i("Playback", "audio focus holders ${audioActivitySnapshot()}")
                         if (resumeOnBluetooth && !userPausedPlayback) {
                             scheduleA2dpPlayRetries()
                         }
@@ -318,6 +329,7 @@ class PlaybackService : MediaLibraryService() {
                     setResumeOnBluetooth(true)
                     btPlayRetryJob?.cancel()
                     armA2dpKick("is-playing")
+                    if (autoplayArmed) schedulePhoneSpeakerGuard()
                 }
                 serviceScope.launch {
                     val q = queue
@@ -354,7 +366,7 @@ class PlaybackService : MediaLibraryService() {
                 AmpLog.w(
                     "Playback",
                     "suppression=${suppressionName(playbackSuppressionReason)} " +
-                        "isPlaying=${exo.isPlaying}",
+                        "isPlaying=${exo.isPlaying} ${audioActivitySnapshot()}",
                 )
                 if (playbackSuppressionReason == Player.PLAYBACK_SUPPRESSION_REASON_NONE &&
                     (exo.playWhenReady || resumeOnBluetooth)
@@ -403,12 +415,16 @@ class PlaybackService : MediaLibraryService() {
         serviceScope.launch {
             resumeOnBluetooth = userSettings.resumeOnBluetooth.first()
             val a2dp = hasA2dpOutput()
+            val permitted = autoplayMayStart()
             AmpLog.i(
                 "Playback",
-                "resumeOnBluetooth restored=$resumeOnBluetooth a2dp=$a2dp",
+                "resumeOnBluetooth restored=$resumeOnBluetooth a2dp=$a2dp autoplay=$permitted",
             )
-            val play = resumeOnBluetooth && a2dp
-            if (play) ensureForegroundBootstrap("startup-a2dp-play")
+            val play = resumeOnBluetooth && a2dp && permitted
+            if (play) {
+                autoplayArmed = true
+                ensureForegroundBootstrap("startup-a2dp-play")
+            }
             if (userSettings.resumeShuffle.first()) {
                 playbackMutex.withLock { restoreShuffleIfPossibleLocked(play = play) }
             }
@@ -454,12 +470,12 @@ class PlaybackService : MediaLibraryService() {
                     playbackMutex.withLock {
                         val exo = exoPlayer
                         if (exo == null || exo.mediaItemCount == 0) {
-                            restoreShuffleIfPossibleLocked(play = true)
-                        } else {
-                            resumeFromIdleOrPlayLocked(exo)
+                            restoreShuffleIfPossibleLocked(play = false)
                         }
                     }
-                    if (resumeOnBluetooth) maybeResumeExistingBluetooth()
+                    if (resumeOnBluetooth && !userPausedPlayback) {
+                        scheduleBluetoothAudioSettle("bt-wake")
+                    }
                 }
             }
         }
@@ -481,6 +497,7 @@ class PlaybackService : MediaLibraryService() {
                         }
                         widgetUpdater.setPlaying(exo.isPlaying)
                     } else {
+                        disarmAutoplayGuard()
                         restoreShuffleIfPossibleLocked(play = true)
                     }
                 }
@@ -495,6 +512,7 @@ class PlaybackService : MediaLibraryService() {
                 playbackMutex.withLock {
                     val persisted = shuffleStore.load()
                     if (persisted != null) {
+                        disarmAutoplayGuard()
                         restoreShuffleIfPossibleLocked(play = true)
                     } else {
                         val tracks = library.getAllTracks()
@@ -602,6 +620,10 @@ class PlaybackService : MediaLibraryService() {
                 }
                 lastA2dpAddedElapsed = SystemClock.elapsedRealtime()
                 a2dpKickDone = false
+                serviceScope.launch {
+                    val connected = BluetoothMediaRoute(this@PlaybackService).connectedBluetoothMedia()
+                    if (connected.isNotEmpty()) userSettings.rememberAutoplayDevices(connected)
+                }
                 AmpLog.i(
                     "Playback",
                     "BT A2DP added types=${a2dp.joinToString { it.type.toString() }} " +
@@ -692,13 +714,19 @@ class PlaybackService : MediaLibraryService() {
                 }
             }
             resumeOnBluetooth && !userPausedPlayback -> {
+                if (!autoplayMayStart()) {
+                    AmpLog.i("Playback", "BT settle skipped, autoplay not permitted ($reason)")
+                    return
+                }
                 AmpLog.i("Playback", "BT resume → play")
+                autoplayArmed = true
                 ensureForegroundBootstrap("bt-resume")
                 if (exo.mediaItemCount == 0) {
                     restoreShuffleIfPossibleLocked(play = true)
                 } else {
                     exo.play()
                 }
+                logAudioFocusResult("bt-resume", exo)
                 if (!exo.playWhenReady && !exo.isPlaying) {
                     AmpLog.w("Playback", "BT resume playWhenReady still false")
                     scheduleA2dpPlayRetries()
@@ -718,6 +746,10 @@ class PlaybackService : MediaLibraryService() {
             repeat(BT_PLAY_RETRY_COUNT) { attempt ->
                 delay(BT_PLAY_RETRY_MS)
                 if (!isActive || userPausedPlayback || !resumeOnBluetooth) return@launch
+                if (!autoplayMayStart()) {
+                    AmpLog.i("Playback", "BT play retry stopped, autoplay not permitted")
+                    return@launch
+                }
                 if (!hasA2dpOutput()) return@launch
                 val exo = exoPlayer ?: return@launch
                 if (exo.isPlaying || exo.playWhenReady) {
@@ -728,11 +760,13 @@ class PlaybackService : MediaLibraryService() {
                 playbackMutex.withLock {
                     val player = exoPlayer ?: return@withLock
                     if (player.isPlaying || player.playWhenReady || userPausedPlayback) return@withLock
+                    autoplayArmed = true
                     if (player.mediaItemCount == 0) {
                         restoreShuffleIfPossibleLocked(play = true)
                     } else {
                         player.play()
                     }
+                    logAudioFocusResult("retry-${attempt + 1}", player)
                 }
             }
             AmpLog.w("Playback", "BT play retries exhausted")
@@ -810,7 +844,47 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
+    private fun disarmAutoplayGuard() {
+        autoplayArmed = false
+        speakerGuardJob?.cancel()
+    }
+
+    /**
+     * After an autoplay start, pause if music is actually coming out of the phone.
+     * Does not count as a user pause, so a later real car connect can try again.
+     */
+    private fun schedulePhoneSpeakerGuard() {
+        if (!autoplayArmed || speakerGuardJob?.isActive == true) return
+        speakerGuardJob = serviceScope.launch {
+            delay(BT_SPEAKER_GUARD_MS)
+            val playing = exoPlayer?.isPlaying == true
+            val speaker = BluetoothMediaRoute(this@PlaybackService).phoneSpeakerIsMediaRoute()
+            AmpLog.i("Playback", "BT autoplay route check playing=$playing phoneSpeaker=$speaker")
+            if (!autoplayArmed || !playing) return@launch
+            if (!speaker) {
+                autoplayArmed = false
+                return@launch
+            }
+            AmpLog.w("Playback", "BT autoplay stayed on phone speaker → pause")
+            playbackMutex.withLock {
+                autoplayArmed = false
+                btPlayRetryJob?.cancel()
+                exoPlayer?.pause()
+            }
+        }
+    }
+
+    /** User switch on, and at least one connected music output is allowed. */
+    private suspend fun autoplayMayStart(): Boolean {
+        if (!userSettings.bluetoothAutoplay.first()) return false
+        val connected = BluetoothMediaRoute(this).connectedBluetoothMedia()
+        if (connected.isNotEmpty()) userSettings.rememberAutoplayDevices(connected)
+        if (connected.isEmpty()) return false
+        return connected.any { userSettings.isAutoplayDeviceAllowed(it.address) }
+    }
+
     private suspend fun resumeFromIdleOrPlayLocked(exo: ExoPlayer) {
+        disarmAutoplayGuard()
         when {
             exo.mediaItemCount == 0 -> restoreShuffleIfPossibleLocked(play = true)
             exo.playbackState == Player.STATE_IDLE -> {
@@ -1063,6 +1137,7 @@ class PlaybackService : MediaLibraryService() {
         shuffle: Boolean,
     ) {
         if (trackIds.isEmpty()) return
+        disarmAutoplayGuard()
         ensureForegroundBootstrap("startPlayback")
         snapshotActiveLocked()
         shuffleEnabled = shuffle
@@ -1463,6 +1538,55 @@ class PlaybackService : MediaLibraryService() {
         Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM -> "END_OF_MEDIA_ITEM"
         Player.PLAY_WHEN_READY_CHANGE_REASON_SUPPRESSED_TOO_LONG -> "SUPPRESSED_TOO_LONG"
         else -> "OTHER($reason)"
+    }
+
+    /**
+     * ExoPlayer owns the focus request. A second requestAudioFocus would take
+     * focus ourselves, so the result is read from the player state afterwards:
+     * granted (playWhenReady), delayed (transient suppression), failed (still paused).
+     */
+    private fun logAudioFocusResult(reason: String, exo: ExoPlayer) {
+        val result = when {
+            exo.playbackSuppressionReason ==
+                Player.PLAYBACK_SUPPRESSION_REASON_TRANSIENT_AUDIO_FOCUS_LOSS -> "delayed"
+            exo.playWhenReady || exo.isPlaying -> "granted"
+            else -> "failed"
+        }
+        AmpLog.i(
+            "Playback",
+            "audio focus result=$result reason=$reason " +
+                "playWhenReady=${exo.playWhenReady} playing=${exo.isPlaying} " +
+                "suppression=${suppressionName(exo.playbackSuppressionReason)} " +
+                audioActivitySnapshot(),
+        )
+    }
+
+    private fun audioActivitySnapshot(): String {
+        val am = getSystemService(AudioManager::class.java) ?: return "mode=unknown"
+        val mode = when (am.mode) {
+            AudioManager.MODE_NORMAL -> "normal"
+            AudioManager.MODE_RINGTONE -> "ringtone"
+            AudioManager.MODE_IN_CALL -> "in-call"
+            AudioManager.MODE_IN_COMMUNICATION -> "in-communication"
+            else -> "other(${am.mode})"
+        }
+        val active = am.activePlaybackConfigurations.joinToString(prefix = "[", postfix = "]") { cfg ->
+            audioUsageName(cfg.audioAttributes.usage)
+        }
+        return "mode=$mode musicActive=${am.isMusicActive} active=$active"
+    }
+
+    private fun audioUsageName(usage: Int): String = when (usage) {
+        android.media.AudioAttributes.USAGE_MEDIA -> "media"
+        android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION -> "voice-call"
+        android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING -> "call-signalling"
+        android.media.AudioAttributes.USAGE_NOTIFICATION -> "notification"
+        android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE -> "navigation"
+        android.media.AudioAttributes.USAGE_ASSISTANT -> "assistant"
+        android.media.AudioAttributes.USAGE_GAME -> "game"
+        android.media.AudioAttributes.USAGE_ALARM -> "alarm"
+        android.media.AudioAttributes.USAGE_UNKNOWN -> "unknown"
+        else -> "usage($usage)"
     }
 
     private fun suppressionName(reason: Int): String = when (reason) {

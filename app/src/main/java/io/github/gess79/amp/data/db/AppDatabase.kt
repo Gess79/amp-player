@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SourceQueueEntity::class,
         PlaylistFileStateEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +30,12 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         /** Must match Room's generated schema exactly, or the app fails to open the DB. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE loudness ADD COLUMN waveform BLOB")
+            }
+        }
+
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(

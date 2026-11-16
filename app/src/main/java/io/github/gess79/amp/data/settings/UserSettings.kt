@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,6 +32,8 @@ class UserSettings @Inject constructor(
     private val appLanguageKey = stringPreferencesKey("app_language")
     private val playlistFoldersKey = stringSetPreferencesKey("playlist_folder_uris")
     private val playlistFolderPromptDoneKey = booleanPreferencesKey("playlist_folder_prompt_done")
+    private val bluetoothAutoplayKey = booleanPreferencesKey("bluetooth_autoplay")
+    private val autoplayDevicesKey = stringPreferencesKey("bt_autoplay_devices")
 
     /** SAF tree URIs (persisted grants) that are scanned for m3u/xspf files. */
     val playlistFolderUris: Flow<Set<String>> =
@@ -129,5 +132,54 @@ class UserSettings @Inject constructor(
     suspend fun setAppLanguage(value: AppLanguage) {
         context.dataStore.edit { it[appLanguageKey] = value.tag }
         AppLocale.apply(value)
+    }
+
+    /** User switch. Default on: connecting a music device may resume playback. */
+    val bluetoothAutoplay: Flow<Boolean> =
+        context.dataStore.data.map { it[bluetoothAutoplayKey] ?: true }
+
+    val autoplayDevices: Flow<List<AutoplayDevice>> =
+        context.dataStore.data.map { decodeAutoplayDevices(it[autoplayDevicesKey]) }
+
+    suspend fun setBluetoothAutoplay(value: Boolean) {
+        context.dataStore.edit { it[bluetoothAutoplayKey] = value }
+    }
+
+    suspend fun setAutoplayDeviceAllowed(address: String, allowed: Boolean) {
+        context.dataStore.edit { prefs ->
+            val devices = decodeAutoplayDevices(prefs[autoplayDevicesKey]).map { device ->
+                if (device.address == address) device.copy(allowed = allowed) else device
+            }
+            prefs[autoplayDevicesKey] = encodeAutoplayDevices(devices)
+        }
+    }
+
+    /**
+     * Adds newly seen music outputs as allowed. An existing choice is kept.
+     * A non-blank name replaces a blank one.
+     */
+    suspend fun rememberAutoplayDevices(seen: List<AutoplayDevice>) {
+        if (seen.isEmpty()) return
+        context.dataStore.edit { prefs ->
+            val current = decodeAutoplayDevices(prefs[autoplayDevicesKey]).associateBy { it.address }
+            val merged = current.toMutableMap()
+            seen.forEach { device ->
+                val existing = merged[device.address]
+                merged[device.address] = when {
+                    existing == null -> device.copy(allowed = true)
+                    existing.name.isBlank() && device.name.isNotBlank() -> existing.copy(name = device.name)
+                    else -> existing
+                }
+            }
+            prefs[autoplayDevicesKey] = encodeAutoplayDevices(merged.values.toList())
+        }
+    }
+
+    /** Unknown addresses are allowed until the user turns that device off. */
+    suspend fun isAutoplayDeviceAllowed(address: String): Boolean {
+        val devices = decodeAutoplayDevices(
+            context.dataStore.data.map { it[autoplayDevicesKey] }.first(),
+        )
+        return devices.find { it.address == address }?.allowed ?: true
     }
 }

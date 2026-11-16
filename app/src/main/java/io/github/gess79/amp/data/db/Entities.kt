@@ -121,4 +121,6 @@ data class LoudnessEntity(
     /** tag | scan | playback */
     val source: String,
     val updatedAt: Long = System.currentTimeMillis(),
+    /** Peak envelope, [io.github.gess79.amp.loudness.WaveformPeaks.BAR_COUNT] bytes, or null if not scanned. */
+    val waveform: ByteArray? = null,
 )

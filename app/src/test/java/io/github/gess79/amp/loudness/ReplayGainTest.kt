@@ -76,6 +76,32 @@ class ReplayGainTest {
     }
 
     @Test
+    fun waveform_missingEnvelopeIsNotCurrent() {
+        val entry = loudness(size = 1_000, modified = 10)
+        val track = track(size = 1_000, modified = 10)
+        assertThat(isWaveformCurrentEntry(entry, track)).isFalse()
+    }
+
+    @Test
+    fun waveform_downsampleKeepsLoudAndQuietBars() {
+        val blocks = List(WaveformPeaks.BAR_COUNT) { index -> if (index < 48) 1f else 0f }
+        val out = WaveformPeaks.downsample(blocks)
+        assertThat(out.size).isEqualTo(WaveformPeaks.BAR_COUNT)
+        assertThat(out[0].toInt() and 0xFF).isEqualTo(255)
+        assertThat(out.last().toInt() and 0xFF).isEqualTo(0)
+    }
+
+    @Test
+    fun waveform_storedEnvelopeMatchesFileSize() {
+        val peaks = ByteArray(WaveformPeaks.BAR_COUNT) { 40 }
+        val entry = loudness(size = 1_000, modified = 10).copy(waveform = peaks)
+        val same = track(size = 1_000, modified = 99)
+        val changed = track(size = 2_000, modified = 10)
+        assertThat(isWaveformCurrentEntry(entry, same)).isTrue()
+        assertThat(isWaveformCurrentEntry(entry, changed)).isFalse()
+    }
+
+    @Test
     fun limiter_doesNotBoostTrackAlreadyAtTarget() {
         val gain = ReplayGain.playbackGainDb(lufs = -13.8f, peakDb = 0f, limiter = true)
         assertThat(gain).isWithin(0.05f).of(-0.2f)

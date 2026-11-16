@@ -18,8 +18,9 @@ data class LoudnessPlaylistStatus(
     val stale: Int,
     val missing: Int,
     val label: String,
+    val waveformMissing: Int = 0,
 ) {
-    val needsAnalysis: Boolean get() = stale + missing > 0
+    val needsAnalysis: Boolean get() = stale + missing + waveformMissing > 0
 }
 
 @Singleton
@@ -36,17 +37,26 @@ class LoudnessRepository @Inject constructor(
 
     suspend fun get(trackId: Long): LoudnessEntity? = loudnessDao.get(trackId)
 
+    fun observe(trackId: Long): Flow<LoudnessEntity?> = loudnessDao.observe(trackId)
+
     suspend fun getIfCurrent(track: TrackEntity): LoudnessEntity? {
         val entry = loudnessDao.get(track.id) ?: return null
         return if (isCurrent(entry, track)) entry else null
     }
 
+    /**
+     * Writes loudness. Keeps an existing waveform when [waveform] is null and the file size
+     * still matches. A size change drops a stale envelope unless a new one is passed in.
+     */
     suspend fun upsert(
         track: TrackEntity,
         result: LoudnessResult,
         source: String,
+        waveform: ByteArray? = null,
     ) {
         val size = fingerprintSize(track)
+        val existing = loudnessDao.get(track.id)
+        val wave = waveform ?: existing?.waveform?.takeIf { existing.sizeBytes == size }
         loudnessDao.upsert(
             LoudnessEntity(
                 trackId = track.id,
@@ -55,6 +65,20 @@ class LoudnessRepository @Inject constructor(
                 lufs = result.lufs,
                 peakDb = result.peakDb,
                 source = source,
+                waveform = wave,
+            ),
+        )
+    }
+
+    /** Writes only the peak envelope. Loudness values already stored for this file stay. */
+    suspend fun saveWaveform(track: TrackEntity, waveform: ByteArray) {
+        val existing = loudnessDao.get(track.id) ?: return
+        loudnessDao.upsert(
+            existing.copy(
+                sizeBytes = fingerprintSize(track),
+                dateModified = track.dateModified,
+                updatedAt = System.currentTimeMillis(),
+                waveform = waveform,
             ),
         )
     }
@@ -70,6 +94,9 @@ class LoudnessRepository @Inject constructor(
     fun isCurrent(entry: LoudnessEntity, track: TrackEntity): Boolean =
         isLoudnessCurrent(entry, track)
 
+    fun isWaveformCurrent(entry: LoudnessEntity, track: TrackEntity): Boolean =
+        isWaveformCurrentEntry(entry, track)
+
     private fun statusFor(
         tracks: List<TrackEntity>,
         entries: List<LoudnessEntity>,
@@ -78,30 +105,40 @@ class LoudnessRepository @Inject constructor(
         var current = 0
         var stale = 0
         var missing = 0
+        var waveformMissing = 0
         for (track in tracks) {
             val entry = map[track.id]
             when {
                 entry == null -> missing++
                 !isCurrent(entry, track) -> stale++
+                !isWaveformCurrent(entry, track) -> {
+                    current++
+                    waveformMissing++
+                }
                 else -> current++
             }
         }
         val total = tracks.size
-        val needsAnalysis = stale + missing > 0
+        val loudnessGaps = stale + missing > 0
         val label = when {
             total == 0 -> context.getString(R.string.rg_no_tracks)
-            !needsAnalysis -> context.getString(R.string.rg_all_current, total)
-            stale > 0 && missing > 0 -> context.getString(
+            loudnessGaps && stale > 0 && missing > 0 -> context.getString(
                 R.string.rg_stale_and_missing,
                 current,
                 total,
                 stale,
                 missing,
             )
-            stale > 0 -> context.getString(R.string.rg_stale_needed, current, total, stale)
-            else -> context.getString(R.string.rg_missing_needed, current, total, missing)
+            loudnessGaps && stale > 0 -> context.getString(R.string.rg_stale_needed, current, total, stale)
+            loudnessGaps -> context.getString(R.string.rg_missing_needed, current, total, missing)
+            waveformMissing > 0 -> context.getString(
+                R.string.rg_waveform_missing,
+                total,
+                waveformMissing,
+            )
+            else -> context.getString(R.string.rg_all_current, total)
         }
-        return LoudnessPlaylistStatus(total, current, stale, missing, label)
+        return LoudnessPlaylistStatus(total, current, stale, missing, label, waveformMissing)
     }
 }
 
@@ -114,4 +151,10 @@ internal fun isLoudnessCurrent(entry: LoudnessEntity, track: TrackEntity): Boole
     val size = fingerprintSize(track)
     if (entry.sizeBytes == 0L || size == 0L) return true
     return entry.sizeBytes == size
+}
+
+internal fun isWaveformCurrentEntry(entry: LoudnessEntity, track: TrackEntity): Boolean {
+    val peaks = entry.waveform ?: return false
+    if (peaks.size != WaveformPeaks.BAR_COUNT) return false
+    return isLoudnessCurrent(entry, track)
 }

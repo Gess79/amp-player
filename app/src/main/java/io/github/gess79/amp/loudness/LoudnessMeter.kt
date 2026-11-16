@@ -191,3 +191,8 @@ data class LoudnessResult(
     val lufs: Float,
     val peakDb: Float,
 )
+
+data class PcmMeasurement(
+    val loudness: LoudnessResult,
+    val waveform: ByteArray,
+)

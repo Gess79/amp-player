@@ -45,6 +45,7 @@
     <string name="cd_add_to_playlist">Zu Playlist</string>
     <string name="cd_cover">Cover</string>
     <string name="cd_sleep_30_min">Sleep 30 Min.</string>
+    <string name="cd_seek">Spulen</string>
     <string name="cd_new_playlist">Neue Playlist</string>
     <string name="placeholder_em_dash">—</string>
     <string name="shuffle_on">Shuffle an</string>
@@ -86,6 +87,12 @@
     <string name="settings_replay_gain_subtitle">Titel einer Playlist auf etwa −14 LUFS bringen. Originale bleiben unverändert; Werte liegen nur im App-Cache. Default aus.</string>
     <string name="settings_replay_gain_limiter">Gain + Limiter</string>
     <string name="settings_replay_gain_limiter_subtitle">An: Ziel −14 LUFS, Peaks werden begrenzt (max. +12 dB). Aus: nur Gain, Peaks bleiben unter 0 dB.</string>
+    <string name="settings_bluetooth_autoplay">Bluetooth-Autoplay</string>
+    <string name="settings_bluetooth_autoplay_subtitle">Startet die Wiedergabe, wenn ein gemerktes Audiogerät verbunden wird. Abspielen ohne Bluetooth bleibt am Telefonlautsprecher.</string>
+    <string name="settings_bluetooth_autoplay_devices">Autoplay-Geräte</string>
+    <string name="settings_bluetooth_autoplay_devices_subtitle">Für jedes Bluetooth-Audiogerät festlegen, ob es die Wiedergabe starten darf.</string>
+    <string name="settings_bluetooth_autoplay_devices_empty">Noch kein Audiogerät verbunden. Ein Gerät erscheint hier, sobald es sich als Musikausgang verbindet.</string>
+    <string name="settings_bluetooth_autoplay_device_unknown">Unbekanntes Gerät</string>
     <string name="settings_import_playlist_file">Playlist-Datei importieren (m3u/xspf)</string>
     <string name="settings_refresh_library">Bibliothek + Playlists aktualisieren</string>
     <string name="settings_shuffle_all">Alle Titel shuffeln</string>
@@ -164,6 +171,7 @@
     <string name="rg_stale_and_missing">Lautheit: %1$d von %2$d Titeln gemessen · %4$d noch offen · %3$d seit der Messung geändert</string>
     <string name="rg_stale_needed">Lautheit: %1$d von %2$d Titeln gemessen · %3$d seit der Messung geändert</string>
     <string name="rg_missing_needed">Lautheit: %1$d von %2$d Titeln gemessen · %3$d noch offen</string>
+    <string name="rg_waveform_missing">Lautheit: alle %1$d Titel gemessen · Höhenprofil fehlt bei %2$d</string>
     <string name="rg_start">Lautheit: Analyse startet…</string>
     <string name="rg_start_failed">Lautheit: Analyse konnte nicht starten. App offen lassen und erneut tippen.</string>
     <string name="rg_analyzing">Lautheit: wird analysiert…</string>

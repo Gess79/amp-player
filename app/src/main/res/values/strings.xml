@@ -42,6 +42,7 @@
     <string name="cd_add_to_playlist">Add to playlist</string>
     <string name="cd_cover">Cover</string>
     <string name="cd_sleep_30_min">Sleep 30 min</string>
+    <string name="cd_seek">Seek</string>
     <string name="cd_new_playlist">New playlist</string>
     <string name="placeholder_em_dash">—</string>
     <string name="shuffle_on">Shuffle on</string>
@@ -81,6 +82,12 @@
     <string name="settings_replay_gain_subtitle">Bring playlist tracks to about −14 LUFS. Originals stay unchanged; values live only in the app cache. Off by default.</string>
     <string name="settings_replay_gain_limiter">Gain + limiter</string>
     <string name="settings_replay_gain_limiter_subtitle">On: target −14 LUFS, peaks limited (max +12 dB). Off: gain only, peaks stay under 0 dB.</string>
+    <string name="settings_bluetooth_autoplay">Bluetooth autoplay</string>
+    <string name="settings_bluetooth_autoplay_subtitle">Starts playback when a remembered audio device connects. Playback without Bluetooth stays on the phone speaker.</string>
+    <string name="settings_bluetooth_autoplay_devices">Autoplay devices</string>
+    <string name="settings_bluetooth_autoplay_devices_subtitle">Choose whether each Bluetooth audio device may start playback.</string>
+    <string name="settings_bluetooth_autoplay_devices_empty">No audio device yet. A device shows up here once it connects as a music output.</string>
+    <string name="settings_bluetooth_autoplay_device_unknown">Unknown device</string>
     <string name="settings_import_playlist_file">Import playlist file (m3u/xspf)</string>
     <string name="settings_refresh_library">Refresh library + playlists</string>
     <string name="settings_shuffle_all">Shuffle all tracks</string>
@@ -154,6 +161,7 @@
     <string name="rg_stale_and_missing">Loudness: %1$d of %2$d tracks measured · %4$d remaining · %3$d changed since measuring</string>
     <string name="rg_stale_needed">Loudness: %1$d of %2$d tracks measured · %3$d changed since measuring</string>
     <string name="rg_missing_needed">Loudness: %1$d of %2$d tracks measured · %3$d remaining</string>
+    <string name="rg_waveform_missing">Loudness: all %1$d tracks measured · waveform missing for %2$d</string>
     <string name="rg_start">Loudness: starting analysis…</string>
     <string name="rg_start_failed">Loudness: could not start analysis. Keep the app open and try again.</string>
     <string name="rg_analyzing">Loudness: analyzing…</string>

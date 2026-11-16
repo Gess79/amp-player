@@ -49,6 +49,14 @@ class BluetoothResumeReceiver : BroadcastReceiver() {
             return
         }
 
+        if (action == BluetoothDevice.ACTION_ACL_CONNECTED &&
+            intent != null &&
+            !BluetoothMediaRoute.isLikelyAudio(intent)
+        ) {
+            AmpLog.i("Playback", "BT wake skipped, device class is not audio")
+            return
+        }
+
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {

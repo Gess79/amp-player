@@ -130,18 +130,20 @@ fun AmpRoot() {
                     SettingsScreen(onBack = { navController.popBackStack() })
                 }
             }
-            MiniPlayerBar(
-                state = playback,
-                onOpen = {
-                    navController.navigate(Dest.NowPlaying.route) {
-                        launchSingleTop = true
-                    }
-                },
-                onPrevious = { vm.skipToPrevious() },
-                onPlayPause = { vm.playPause() },
-                onNext = { vm.skipToNext() },
-                onSeek = { vm.seekTo(it) },
-            )
+            if (current != Dest.NowPlaying.route) {
+                MiniPlayerBar(
+                    state = playback,
+                    onOpen = {
+                        navController.navigate(Dest.NowPlaying.route) {
+                            launchSingleTop = true
+                        }
+                    },
+                    onPrevious = { vm.skipToPrevious() },
+                    onPlayPause = { vm.playPause() },
+                    onNext = { vm.skipToNext() },
+                    onSeek = { vm.seekTo(it) },
+                )
+            }
         }
     }
 }

@@ -53,6 +53,10 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val replayGainLimiter = settings.replayGainLimiter
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val bluetoothAutoplay = settings.bluetoothAutoplay
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+    val autoplayDevices = settings.autoplayDevices
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val appLanguage = settings.appLanguage
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppLanguage.DEFAULT)
 
@@ -84,6 +88,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setReplayGainLimiter(value: Boolean) {
         viewModelScope.launch { settings.setReplayGainLimiter(value) }
+    }
+
+    fun setBluetoothAutoplay(value: Boolean) {
+        viewModelScope.launch { settings.setBluetoothAutoplay(value) }
+    }
+
+    fun setAutoplayDeviceAllowed(address: String, allowed: Boolean) {
+        viewModelScope.launch { settings.setAutoplayDeviceAllowed(address, allowed) }
     }
 
     fun setAppLanguage(value: AppLanguage) {

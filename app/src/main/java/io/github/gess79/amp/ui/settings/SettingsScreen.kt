@@ -7,8 +7,10 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,6 +65,8 @@ fun SettingsScreen(
     val spreadArtist by vm.spreadSameArtist.collectAsStateWithLifecycle()
     val replayGain by vm.replayGainEnabled.collectAsStateWithLifecycle()
     val replayGainLimiter by vm.replayGainLimiter.collectAsStateWithLifecycle()
+    val bluetoothAutoplay by vm.bluetoothAutoplay.collectAsStateWithLifecycle()
+    var showAutoplayDevices by remember { mutableStateOf(false) }
     val appLanguage by vm.appLanguage.collectAsStateWithLifecycle()
     val importMessage by vm.importMessage.collectAsStateWithLifecycle()
     val playlistFolders by vm.playlistFolderList.collectAsStateWithLifecycle()
@@ -72,6 +77,10 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         bluetoothWakeStatus = BluetoothWakeDiagnostics.statusText(context)
+    }
+
+    BackHandler(enabled = showAutoplayDevices) {
+        showAutoplayDevices = false
     }
 
     val importLauncher = rememberLauncherForActivityResult(
@@ -96,6 +105,14 @@ fun SettingsScreen(
             },
             Toast.LENGTH_LONG,
         ).show()
+    }
+
+    if (showAutoplayDevices) {
+        BluetoothAutoplayDevicesScreen(
+            onBack = { showAutoplayDevices = false },
+            vm = vm,
+        )
+        return
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -193,6 +210,31 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.settings_replay_gain_limiter_subtitle),
                     checked = replayGainLimiter,
                     onCheckedChange = vm::setReplayGainLimiter,
+                )
+            }
+            SettingsToggle(
+                title = stringResource(R.string.settings_bluetooth_autoplay),
+                subtitle = stringResource(R.string.settings_bluetooth_autoplay_subtitle),
+                checked = bluetoothAutoplay,
+                onCheckedChange = vm::setBluetoothAutoplay,
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showAutoplayDevices = true }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_bluetooth_autoplay_devices))
+                    Text(
+                        stringResource(R.string.settings_bluetooth_autoplay_devices_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
                 )
             }
 

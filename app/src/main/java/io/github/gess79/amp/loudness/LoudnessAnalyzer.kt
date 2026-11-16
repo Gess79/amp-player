@@ -104,7 +104,7 @@ class LoudnessAnalyzer @Inject constructor(
                             val n = done.incrementAndGet()
                             val extra = analysis.result?.let {
                                 " lufs=${"%.1f".format(it.lufs)} peak=${"%.1f".format(it.peakDb)}"
-                            } ?: ""
+                            }.orEmpty() + analysis.note
                             AmpLog.i(
                                 "ReplayGain",
                                 "scan $n/${tracks.size} ${analysis.outcome.name.lowercase()}$extra " +
@@ -191,22 +191,56 @@ class LoudnessAnalyzer @Inject constructor(
     }
 
     private suspend fun analyzeTrack(track: TrackEntity): TrackAnalysis {
-        if (repository.getIfCurrent(track) != null) {
+        val entry = repository.get(track.id)
+        val loudnessOk = entry != null && repository.isCurrent(entry, track)
+        val waveformOk = entry != null && repository.isWaveformCurrent(entry, track)
+        if (loudnessOk && waveformOk) {
             return TrackAnalysis(TrackOutcome.Current)
         }
         val uri = library.contentUriFor(track.id)
-        val tagged = readTags(track, uri.toString())
-        if (tagged != null) {
-            repository.upsert(track, tagged, source = "tag")
-            return TrackAnalysis(TrackOutcome.Tag, tagged)
+        var loudness: LoudnessResult? = null
+        var loudnessSource: String? = null
+        if (!loudnessOk) {
+            val tagged = readTags(track, uri.toString())
+            if (tagged != null) {
+                loudness = tagged
+                loudnessSource = "tag"
+            }
         }
-        val measured = decoder.measure(track, uri)
-        if (measured != null) {
-            repository.upsert(track, measured, source = "scan")
-            return TrackAnalysis(TrackOutcome.Scan, measured)
+        val needDecode = !waveformOk || (loudness == null && !loudnessOk)
+        var waveform: ByteArray? = null
+        if (needDecode) {
+            val measured = decoder.measure(track, uri)
+            if (measured == null) {
+                if (loudness != null && loudnessSource != null) {
+                    repository.upsert(track, loudness, loudnessSource)
+                    return TrackAnalysis(TrackOutcome.Tag, loudness, note = " waveform=failed")
+                }
+                AmpLog.w("ReplayGain", "measure failed id=${track.id} title=${track.title}")
+                return TrackAnalysis(TrackOutcome.Failed)
+            }
+            if (!loudnessOk && loudness == null) {
+                loudness = measured.loudness
+                loudnessSource = "scan"
+            }
+            if (!waveformOk) waveform = measured.waveform
         }
-        AmpLog.w("ReplayGain", "measure failed id=${track.id} title=${track.title}")
-        return TrackAnalysis(TrackOutcome.Failed)
+        val note = buildString {
+            if (loudnessOk) append(" loudness=kept")
+            if (waveformOk) append(" waveform=kept")
+            if (waveform != null) append(" waveform=saved")
+        }
+        when {
+            loudness != null && loudnessSource != null ->
+                repository.upsert(track, loudness, loudnessSource, waveform)
+            waveform != null -> repository.saveWaveform(track, waveform)
+        }
+        val outcome = when {
+            loudnessSource == "tag" -> TrackOutcome.Tag
+            loudnessSource == "scan" || waveform != null -> TrackOutcome.Scan
+            else -> TrackOutcome.Failed
+        }
+        return TrackAnalysis(outcome, loudness, note)
     }
 
     private fun readTags(track: TrackEntity, uriString: String): LoudnessResult? {
@@ -228,6 +262,7 @@ class LoudnessAnalyzer @Inject constructor(
     private data class TrackAnalysis(
         val outcome: TrackOutcome,
         val result: LoudnessResult? = null,
+        val note: String = "",
     )
 
     private enum class TrackOutcome { Current, Tag, Scan, Failed }

@@ -20,7 +20,7 @@ import javax.inject.Singleton
 class PcmTrackDecoder @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    fun measure(track: TrackEntity, contentUri: Uri): LoudnessResult? {
+    fun measure(track: TrackEntity, contentUri: Uri): PcmMeasurement? {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         try {
@@ -47,7 +47,9 @@ class PcmTrackDecoder @Inject constructor(
             decoder.configure(format, null, null, 0)
             decoder.start()
             val meter = LoudnessMeter()
+            val peaks = WaveformAccumulator()
             meter.reset(sampleRate, channels)
+            peaks.reset(channels)
             val info = MediaCodec.BufferInfo()
             var inputDone = false
             var outputDone = false
@@ -89,7 +91,10 @@ class PcmTrackDecoder @Inject constructor(
                         if (outFormat.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
                             pcmEncoding = outFormat.getInteger(MediaFormat.KEY_PCM_ENCODING)
                         }
-                        if (!receivedAudio) meter.reset(sampleRate, channels)
+                        if (!receivedAudio) {
+                            meter.reset(sampleRate, channels)
+                            peaks.reset(channels)
+                        }
                     }
                     MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
                     else -> if (outIndex >= 0) {
@@ -97,7 +102,7 @@ class PcmTrackDecoder @Inject constructor(
                         if (out != null && info.size > 0 &&
                             info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0
                         ) {
-                            feedPcm(meter, out, info, shortBuf, floatBuf, pcmEncoding)
+                            feedPcm(meter, peaks, out, info, shortBuf, floatBuf, pcmEncoding)
                             receivedAudio = true
                         }
                         decoder.releaseOutputBuffer(outIndex, false)
@@ -107,7 +112,8 @@ class PcmTrackDecoder @Inject constructor(
                     }
                 }
             }
-            return meter.result()
+            val loudness = meter.result() ?: return null
+            return PcmMeasurement(loudness, peaks.finish())
         } catch (t: Throwable) {
             AmpLog.w("ReplayGain", "decode failed id=${track.id} title=${track.title}: ${t.message}")
             return null
@@ -120,6 +126,7 @@ class PcmTrackDecoder @Inject constructor(
 
     private fun feedPcm(
         meter: LoudnessMeter,
+        peaks: WaveformAccumulator,
         buffer: ByteBuffer,
         info: MediaCodec.BufferInfo,
         shortBuf: ShortArray,
@@ -139,6 +146,7 @@ class PcmTrackDecoder @Inject constructor(
                     floatBuf[i] = ordered.float
                 }
                 meter.addInterleaved(floatBuf, n)
+                peaks.addInterleaved(floatBuf, n)
                 offset += n
             }
             return
@@ -151,6 +159,10 @@ class PcmTrackDecoder @Inject constructor(
             val n = minOf(shortBuf.size, remaining)
             pcm.get(shortBuf, 0, n)
             meter.addPcm16(shortBuf, n)
+            for (i in 0 until n) {
+                floatBuf[i] = shortBuf[i] / 32768f
+            }
+            peaks.addInterleaved(floatBuf, n)
             remaining -= n
         }
     }

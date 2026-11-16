@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -38,6 +39,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -47,7 +52,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import io.github.gess79.amp.R
 import io.github.gess79.amp.data.db.TrackEntity
 import io.github.gess79.amp.playback.PlaybackUiState
@@ -73,14 +78,7 @@ fun TrackRow(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
-            model = track.albumArtUri,
-            contentDescription = null,
-            modifier = Modifier.size(48.dp),
-            contentScale = ContentScale.Crop,
-            error = null,
-            placeholder = null,
-        )
+        TrackArtwork(track.albumArtUri)
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -104,6 +102,70 @@ fun TrackRow(
             )
         }
         trailing?.invoke()
+    }
+}
+
+@Composable
+private fun TrackArtwork(uri: String?) {
+    val slot = Modifier.size(48.dp)
+    if (uri.isNullOrBlank()) {
+        MissingArtwork(slot)
+    } else {
+        SubcomposeAsyncImage(
+            model = uri,
+            contentDescription = null,
+            modifier = slot,
+            contentScale = ContentScale.Crop,
+            error = { MissingArtwork(Modifier.fillMaxSize()) },
+        )
+    }
+}
+
+/** Two beamed eighth notes. The right one sits a little higher. Color follows the theme. */
+@Composable
+private fun MissingArtwork(modifier: Modifier = Modifier) {
+    val color = MaterialTheme.colorScheme.onSurface
+    Canvas(modifier) {
+        val stem = size.width * 0.055f
+        val headW = size.width * 0.28f
+        val headH = size.height * 0.20f
+        val left = Offset(size.width * 0.32f, size.height * 0.70f)
+        val right = Offset(size.width * 0.68f, size.height * 0.56f)
+        fun stemLeft(head: Offset) = head.x + headW * 0.28f
+        val leftX = stemLeft(left)
+        val rightX = stemLeft(right)
+        val leftTop = size.height * 0.24f
+        val rightTop = size.height * 0.12f
+        val beam = size.height * 0.085f
+        drawPath(
+            Path().apply {
+                moveTo(leftX, leftTop)
+                lineTo(rightX + stem, rightTop)
+                lineTo(rightX + stem, rightTop + beam)
+                lineTo(leftX, leftTop + beam)
+                close()
+            },
+            color,
+        )
+        drawRect(color, Offset(leftX, leftTop), Size(stem, left.y - leftTop))
+        drawRect(color, Offset(rightX, rightTop), Size(stem, right.y - rightTop))
+        drawNoteHead(color, left, headW, headH)
+        drawNoteHead(color, right, headW, headH)
+    }
+}
+
+private fun DrawScope.drawNoteHead(
+    color: Color,
+    center: Offset,
+    headW: Float,
+    headH: Float,
+) {
+    rotate(degrees = -22f, pivot = center) {
+        drawOval(
+            color = color,
+            topLeft = Offset(center.x - headW / 2f, center.y - headH / 2f),
+            size = Size(headW, headH),
+        )
     }
 }
 
