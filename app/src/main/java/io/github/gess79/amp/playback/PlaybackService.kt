@@ -1,9 +1,11 @@
 package io.github.gess79.amp.playback
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
@@ -16,6 +18,7 @@ import android.os.Looper
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
@@ -126,6 +129,13 @@ class PlaybackService : MediaLibraryService() {
     /** Resume when a BT audio sink appears, unless the user explicitly paused. */
     private var resumeOnBluetooth = false
     private var userPausedPlayback = false
+    /**
+     * A pause already happened. Do not call play() again while this Bluetooth
+     * connection stays up (focus loss, settle, or a file-error retry). Cleared
+     * when playback is requested again, when Bluetooth audio drops, or when a
+     * music output connects, so the next connection may auto-start.
+     */
+    private var pauseBlocksPlayRetries = false
     private var audioDeviceCallback: AudioDeviceCallback? = null
     private var btResumeJob: Job? = null
     private var lastA2dpAddedElapsed = 0L
@@ -287,6 +297,7 @@ class PlaybackService : MediaLibraryService() {
                 )
                 when {
                     playWhenReady -> {
+                        pauseBlocksPlayRetries = false
                         userPausedPlayback = false
                         setResumeOnBluetooth(true)
                         // Kick only once playback is really requested. Doing it earlier,
@@ -296,22 +307,27 @@ class PlaybackService : MediaLibraryService() {
                     }
                     reattachingAudio -> { /* pause/play bounce to bind A2DP; not a user pause */ }
                     reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST -> {
+                        pauseBlocksPlayRetries = true
+                        btPlayRetryJob?.cancel()
+                        btResumeJob?.cancel()
                         if (expectLocalUserPause) {
                             expectLocalUserPause = false
                             userPausedPlayback = true
                             setResumeOnBluetooth(false)
-                            btPlayRetryJob?.cancel()
                         }
                     }
                     reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY -> {
                         userPausedPlayback = false
+                        pauseBlocksPlayRetries = false
                         setResumeOnBluetooth(true)
                     }
                     reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS -> {
                         // Head unit often holds focus for a while after A2DP connects.
                         // play() stays false; keep retrying instead of rebinding a dead route.
                         AmpLog.i("Playback", "audio focus holders ${audioActivitySnapshot()}")
-                        if (resumeOnBluetooth && !userPausedPlayback) {
+                        if (pauseBlocksPlayRetries || userPausedPlayback) {
+                            AmpLog.i("Playback", "BT play retry skipped, playback was paused")
+                        } else if (resumeOnBluetooth) {
                             scheduleA2dpPlayRetries()
                         }
                     }
@@ -371,7 +387,11 @@ class PlaybackService : MediaLibraryService() {
                 if (playbackSuppressionReason == Player.PLAYBACK_SUPPRESSION_REASON_NONE &&
                     (exo.playWhenReady || resumeOnBluetooth)
                 ) {
-                    scheduleBluetoothAudioSettle("suppression-cleared")
+                    if (pauseBlocksPlayRetries && !exo.playWhenReady) {
+                        AmpLog.i("Playback", "BT settle skipped, playback was paused (suppression-cleared)")
+                    } else {
+                        scheduleBluetoothAudioSettle("suppression-cleared")
+                    }
                 }
             }
 
@@ -381,6 +401,13 @@ class PlaybackService : MediaLibraryService() {
                     "playerError code=${error.errorCodeName} msg=${error.message}",
                     error,
                 )
+                if (error.hasAccessDenial()) {
+                    AmpLog.w(
+                        "Playback",
+                        "media access denied audioPermission=${hasAudioPermission()} " +
+                            "track=${queue?.currentTrackId}",
+                    )
+                }
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -624,6 +651,10 @@ class PlaybackService : MediaLibraryService() {
                     val connected = BluetoothMediaRoute(this@PlaybackService).connectedBluetoothMedia()
                     if (connected.isNotEmpty()) userSettings.rememberAutoplayDevices(connected)
                 }
+                if (pauseBlocksPlayRetries) {
+                    pauseBlocksPlayRetries = false
+                    AmpLog.i("Playback", "pause block cleared, Bluetooth audio connected")
+                }
                 AmpLog.i(
                     "Playback",
                     "BT A2DP added types=${a2dp.joinToString { it.type.toString() }} " +
@@ -638,7 +669,9 @@ class PlaybackService : MediaLibraryService() {
                 if (bt.isEmpty()) return
                 if (removedDevices.any { it.isA2dpOutput() }) {
                     a2dpKickDone = false
+                    pauseBlocksPlayRetries = false
                     btPlayRetryJob?.cancel()
+                    btResumeJob?.cancel()
                 }
                 AmpLog.i(
                     "Playback",
@@ -705,6 +738,10 @@ class PlaybackService : MediaLibraryService() {
                 "userPaused=$userPausedPlayback suppression=${exo.playbackSuppressionReason}",
         )
         if (!a2dp) return
+        if (pauseBlocksPlayRetries && !exo.playWhenReady && !exo.isPlaying) {
+            AmpLog.i("Playback", "BT settle skipped, playback was paused ($reason)")
+            return
+        }
         when {
             exo.playWhenReady || exo.isPlaying -> {
                 if (a2dpKickDone) {
@@ -716,6 +753,10 @@ class PlaybackService : MediaLibraryService() {
             resumeOnBluetooth && !userPausedPlayback -> {
                 if (!autoplayMayStart()) {
                     AmpLog.i("Playback", "BT settle skipped, autoplay not permitted ($reason)")
+                    return
+                }
+                if (pauseBlocksPlayRetries || userPausedPlayback) {
+                    AmpLog.i("Playback", "BT resume skipped, playback was paused ($reason)")
                     return
                 }
                 AmpLog.i("Playback", "BT resume → play")
@@ -745,7 +786,9 @@ class PlaybackService : MediaLibraryService() {
         btPlayRetryJob = serviceScope.launch {
             repeat(BT_PLAY_RETRY_COUNT) { attempt ->
                 delay(BT_PLAY_RETRY_MS)
-                if (!isActive || userPausedPlayback || !resumeOnBluetooth) return@launch
+                if (!isActive || pauseBlocksPlayRetries || userPausedPlayback || !resumeOnBluetooth) {
+                    return@launch
+                }
                 if (!autoplayMayStart()) {
                     AmpLog.i("Playback", "BT play retry stopped, autoplay not permitted")
                     return@launch
@@ -759,7 +802,11 @@ class PlaybackService : MediaLibraryService() {
                 AmpLog.i("Playback", "BT play retry ${attempt + 1}/$BT_PLAY_RETRY_COUNT")
                 playbackMutex.withLock {
                     val player = exoPlayer ?: return@withLock
-                    if (player.isPlaying || player.playWhenReady || userPausedPlayback) return@withLock
+                    if (player.isPlaying || player.playWhenReady ||
+                        userPausedPlayback || pauseBlocksPlayRetries
+                    ) {
+                        return@withLock
+                    }
                     autoplayArmed = true
                     if (player.mediaItemCount == 0) {
                         restoreShuffleIfPossibleLocked(play = true)
@@ -801,6 +848,27 @@ class PlaybackService : MediaLibraryService() {
         return true
     }
 
+    private fun hasAudioPermission(): Boolean {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun Throwable.hasAccessDenial(): Boolean {
+        var current: Throwable? = this
+        var depth = 0
+        while (current != null && depth < 8) {
+            if (current is SecurityException) return true
+            if (current.message.orEmpty().contains("has no access")) return true
+            current = current.cause
+            depth++
+        }
+        return false
+    }
+
     private fun hasA2dpOutput(): Boolean {
         val am = getSystemService(AudioManager::class.java) ?: return false
         return am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.isA2dpOutput() }
@@ -819,6 +887,7 @@ class PlaybackService : MediaLibraryService() {
     private fun shouldIgnoreRemoteStop(): Boolean =
         lastPlayCurrentWantedPlay &&
             !userPausedPlayback &&
+            !pauseBlocksPlayRetries &&
             SystemClock.elapsedRealtime() - lastPlayCurrentElapsed < IGNORE_REMOTE_STOP_MS
 
     private fun recoverIfIdleAfterPlayCurrent() {
@@ -830,7 +899,7 @@ class PlaybackService : MediaLibraryService() {
                 playbackMutex.withLock {
                     val exo = exoPlayer ?: return@withLock
                     if (exo.playbackState != Player.STATE_IDLE) return@withLock
-                    if (userPausedPlayback) return@withLock
+                    if (userPausedPlayback || pauseBlocksPlayRetries) return@withLock
                     if (exo.mediaItemCount == 0) {
                         restoreShuffleIfPossibleLocked(play = true)
                     } else {

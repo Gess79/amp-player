@@ -184,11 +184,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun maybeRequestBluetoothConnectPermission() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-        val granted = BluetoothWakeDiagnostics.hasConnectPermission(this)
-        if (!granted) {
-            AmpLog.i("Playback", "Requesting BLUETOOTH_CONNECT for ACL/A2DP wake")
-            bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
-        }
+        if (BluetoothWakeDiagnostics.hasConnectPermission(this)) return
+        // One ask per process. Repeating from onResume after a denial reopens the
+        // dialog in a loop and looks like the app is closing. Settings can ask again.
+        if (!bluetoothConnectAsked.compareAndSet(false, true)) return
+        AmpLog.i("Playback", "Requesting BLUETOOTH_CONNECT for ACL/A2DP wake")
+        bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+    }
+
+    companion object {
+        private val bluetoothConnectAsked = java.util.concurrent.atomic.AtomicBoolean(false)
     }
 
 }

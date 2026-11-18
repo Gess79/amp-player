@@ -22,8 +22,10 @@ import javax.inject.Inject
  * Wakes [PlaybackService] when Bluetooth connects while auto-resume is armed.
  * Without this, a killed process never sees A2DP "device added" callbacks.
  *
- * Listens for ACL connect and A2DP profile state. On Android 12+ both require
- * runtime BLUETOOTH_CONNECT or the system delivers nothing.
+ * Listens for ACL connect, adapter connect, and A2DP profile state. On Android 12+
+ * these require runtime BLUETOOTH_CONNECT or the system delivers nothing.
+ * ACL and adapter connects from an obvious non-audio device are ignored.
+ * An A2DP connection still wakes, because that profile is a music output.
  */
 @AndroidEntryPoint
 class BluetoothResumeReceiver : BroadcastReceiver() {
@@ -49,7 +51,7 @@ class BluetoothResumeReceiver : BroadcastReceiver() {
             return
         }
 
-        if (action == BluetoothDevice.ACTION_ACL_CONNECTED &&
+        if (isUngatedConnection(action) &&
             intent != null &&
             !BluetoothMediaRoute.isLikelyAudio(intent)
         ) {
@@ -83,6 +85,11 @@ class BluetoothResumeReceiver : BroadcastReceiver() {
             }
         }
     }
+
+    /** ACL and adapter connects are not proof of a music output. A2DP state is. */
+    private fun isUngatedConnection(action: String): Boolean =
+        action == BluetoothDevice.ACTION_ACL_CONNECTED ||
+            action == BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED
 
     private fun isRelevantAction(action: String, intent: Intent?): Boolean =
         when (action) {
