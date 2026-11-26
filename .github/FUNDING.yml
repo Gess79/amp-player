@@ -1,5 +1,3 @@
 # These are supported funding model platforms
 github: [Gess79]
-custom:
-  - "https://buy.stripe.com/5kQ14o1e51VQcVZfE6cIE00"
-  - "https://mempool.space/address/bc1q03xl6x70wdjexapnxu3rcnzvm65vlcll23u2p8"
+custom: ["https://buy.stripe.com/5kQ14o1e51VQcVZfE6cIE00"]
