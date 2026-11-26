@@ -44,7 +44,12 @@ Bug reports and ideas: open an issue or email [gess79.apps@gmail.com](mailto:ges
 
 ## Donations
 
-AMP is free and has no ads. Voluntary donations (e.g. Liberapay, Ko-fi, GitHub Sponsors, Bitcoin/Lightning) may be linked here later — never inside the Play Store app build.
+AMP is free and has no ads. If you want to support development (never required):
+
+- [GitHub Sponsors](https://github.com/sponsors/Gess79) — one-time or monthly
+- [Donate via Stripe](https://buy.stripe.com/5kQ14o1e51VQcVZfE6cIE00) — card / bank-friendly checkout
+
+Bitcoin and Lightning links may be added later. There is no donation button inside the Play Store app build.
 
 ## Name and logo
 
