@@ -52,7 +52,11 @@ AMP is free and has no ads. If you want to support development (never required):
 
   ![Bitcoin receiving QR code](donations/bitcoin-qr.jpg)
 
-Lightning may be added later. There is no donation button inside the Play Store app build.
+- **Lightning:** `gess79.apps@walletofsatoshi.com`
+
+  ![Lightning receiving QR code](donations/lightning-qr.jpg)
+
+There is no donation button inside the Play Store app build.
 
 ## Name and logo
 
